@@ -1,0 +1,34 @@
+---
+title: "Energetic Consequences of Sonar Exposure"
+output:
+  html_document:
+    df_print: paged
+---
+
+```{r setup, echo=FALSE, message=FALSE}
+library(tidyverse)
+```
+
+What are the energetic consequences for cetaceans when exposed to sonar? The following model makes a first order approximation by estimating (1) the energy intake lost to foraging cessation and (2) the additional energy expenditure from increased swim speeds. We considered these two factors in four potential scenarios: 
+
+1. No response
+2. Cessation of foraging without flight
+3. Cessation of foraging with flight
+4. Extreme response
+
+The model was paramterized using data and models from other sources (see table below). We used functional responses (e.g. mean flight distance) from the literature. The energy cost of lost feeding opportunities were estimated with the scaling relationship between body size and feeding rate in Jeremy's scaling paper. The energy cost of increased swim speeds during flight were estimated using models from Williams et al. 2017.
+
+## Literature
+```{r lit, echo = FALSE, results = "asis"}
+refs <- tibble(Reference = c("Tyack et al. 2011", "DeRuiter et al. 2017", "DeRuiter et al. 2013", "Friedlaender et al. 2016", "Goldbogen et al. 2013", "Kvadsheim et al. 2017", "Southall et al. 2019"),
+               Species = c("Mesoplodon densirostris", "Balaenoptera musculus", "Ziphius cavirostris", "Balaenoptera musculus", "Balaenoptera musculus", "Balaenoptera acutorostrata", "Ziphius cavirostris"),
+               N_tags = c(1, 37, 2, 9, 17, 4, 0),
+               Notes = c("Only 1 tag, but other data from sonar array", "How did the transition probability from deep feeding to other states change in CEEs?", "Reduced time foraging in response to proximal sonar, but not distant", "Includes prey data", "Basis for Friedlaender et al. 2016 and DeRuiter et al. 2017", "SoCal + Norway. 1 CEE + 1 control in each location", "Prey distribution in SoCal sonar array"))
+
+knitr::kable(refs)
+```
+
+## Functional responses
+```{r fun_resp}
+
+```
