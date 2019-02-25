@@ -1,8 +1,8 @@
 ---
 title: "Energetic Consequences of Sonar Exposure"
 output:
-  html_document:
-    df_print: paged
+  github_document:
+    toc: true
 ---
 
 ```{r global_options, include=FALSE}
