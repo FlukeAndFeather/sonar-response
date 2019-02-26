@@ -21,21 +21,15 @@ What are the energetic consequences for cetaceans when exposed to sonar? The fol
 3. Cessation of foraging with flight
 4. Extreme response
 
-The model was paramterized using data and models from other sources (see table below). We used functional responses (e.g. mean flight distance) from the literature. The energy cost of lost feeding opportunities were estimated with the scaling relationship between body size and feeding rate in Jeremy's scaling paper. The energy cost of increased swim speeds during flight were estimated using models from Williams et al. 2017.
+The model was paramterized using data and models from other sources (see table at end). We used functional responses (i.e. displacement distance and duration) from the literature. The energy cost of lost feeding opportunities were estimated with the scaling relationship between body size and feeding rate in Jeremy's scaling paper. The energy cost of increased swim speeds during flight were estimated using models from Williams et al. 2017. Thus:
 
-## Literature
-```{r lit, echo = FALSE, results = "asis"}
-refs <- tibble(Reference = c("Tyack et al. 2011", "DeRuiter et al. 2017", "DeRuiter et al. 2013", "Friedlaender et al. 2016", "Goldbogen et al. 2013", "Kvadsheim et al. 2017", "Southall et al. 2019"),
-               Species = c("Mesoplodon densirostris", "Balaenoptera musculus", "Ziphius cavirostris", "Balaenoptera musculus", "Balaenoptera musculus", "Balaenoptera acutorostrata", "Ziphius cavirostris"),
-               N_tags = c(1, 37, 2, 9, 17, 4, 0),
-               Notes = c("Only 1 tag, but other data from sonar array", "How did the transition probability from deep feeding to other states change in CEEs?", "Reduced time foraging in response to proximal sonar, but not distant", "Includes prey data", "Basis for Friedlaender et al. 2016 and DeRuiter et al. 2017", "SoCal + Norway. 1 CEE + 1 control in each location", "Prey distribution in SoCal sonar array"))
+$E_{sonar} = P_{in} \times t_d + P_{out}(v_f) \times t_f$
 
-knitr::kable(refs)
-```
+Where E~sonar~ is the energy cost of sonar exposure, P~in~ is the rate of energy intake when foraging, t~d~ is the displacement time, P~out~ is the rate of energy expenditure at the flight velocity (v~f~), and t~f~ is the flight time.
 
 ## Functional responses
 
-*Fill me in*
+*In progress*
 
 ```{r fun_resp}
 
@@ -43,7 +37,7 @@ knitr::kable(refs)
 
 ## Energetic parameters
 
-Energy acquired from prey scales sublinearly among odontocetes [E~p~=0.12M~c~^0.81^] but superlinearly among mysticetes [E~p~=5.83M~c~^2.37^]. *Note: Jeremy's paper has a negative coefficient for mysticete E~p~ scaling (v8.3:115) but I think that's a mistake.*
+I'm estimating P~in~ as the product of energy acquired per feeding event (E~p~) and feeding rate (r~f~). Energy acquired from prey scales sublinearly among odontocetes [E~p~=0.12M~c~^0.81^] but superlinearly among mysticetes [E~p~=5.83M~c~^2.37^]. *Note: Jeremy's paper has a negative coefficient for mysticete E~p~ scaling (v8.3:115) but I think that's a mistake.*
 
 ```{r Ep_scaling}
 # Vaquita to sperm whale
@@ -72,4 +66,14 @@ ggplot(Ep_tbl, aes(M, Ep, color = Clade)) +
   theme(legend.position = c(.2, .8))
 ```
 
-*If I understand correctly, E~p~ is energy per feeding event, so to get energy intake per unit time we also need the scaling equation for feeding rate. Figure 2 in Jeremy's paper has [feeding events / dive] ~ [dive time - TADL]. Can we get feeding rates from something like that?*
+*If I understand correctly, E~p~ is energy per feeding event. But how do I get feeding rate? Figure 2 in Jeremy's paper has [feeding events / dive] ~ [dive time - TADL]. Can we get feeding rates from something like that?*
+
+## Literature
+```{r lit, echo = FALSE, results = "asis"}
+refs <- tibble(Reference = c("Tyack et al. 2011", "DeRuiter et al. 2017", "DeRuiter et al. 2013", "Friedlaender et al. 2016", "Goldbogen et al. 2013", "Kvadsheim et al. 2017", "Southall et al. 2019"),
+               Species = c("Mesoplodon densirostris", "Balaenoptera musculus", "Ziphius cavirostris", "Balaenoptera musculus", "Balaenoptera musculus", "Balaenoptera acutorostrata", "Ziphius cavirostris"),
+               N_tags = c(1, 37, 2, 9, 17, 4, 0),
+               Notes = c("Only 1 tag, but other data from sonar array", "How did the transition probability from deep feeding to other states change in CEEs?", "Reduced time foraging in response to proximal sonar, but not distant", "Includes prey data", "Basis for Friedlaender et al. 2016 and DeRuiter et al. 2017", "SoCal + Norway. 1 CEE + 1 control in each location", "Prey distribution in SoCal sonar array"))
+
+knitr::kable(refs)
+```
