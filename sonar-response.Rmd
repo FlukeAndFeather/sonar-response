@@ -1,17 +1,19 @@
 ---
 title: "Energetic Consequences of Sonar Exposure"
-output:
-  github_document:
-    toc: true
+author: "Max Czapanskiy"
+output: pdf_document
 ---
 
 ```{r global_options, include=FALSE}
-knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE)
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE,
+                      fig.height = 3, fig.width = 4)
 ```
 
 ```{r setup}
 library(tidyverse)
 library(scales)
+library(knitr)
+library(kableExtra)
 ```
 
 What are the energetic consequences for cetaceans when exposed to sonar? The following model makes a first order approximation by estimating (1) the energy intake lost to foraging cessation and (2) the additional energy expenditure from increased swim speeds. We considered these two factors in four potential scenarios: 
@@ -21,9 +23,9 @@ What are the energetic consequences for cetaceans when exposed to sonar? The fol
 3. Cessation of foraging with flight
 4. Extreme response
 
-The model was paramterized using data and models from other sources (see table at end). We used functional responses (i.e. displacement distance and duration) from the literature. The energy cost of lost feeding opportunities were estimated with the scaling relationship between body size and feeding rate in Jeremy's scaling paper. The energy cost of increased swim speeds during flight were estimated using models from Williams et al. 2017. Thus:
+The model will be paramterized using data and models from other sources (see table at the end of this document). Functional responses (e.g. displacement distance and duration) will come from the literature. The energy cost of lost feeding opportunities will be estimated with the scaling relationships in Jeremy's scaling paper. The energy cost of increased swim speeds during flight will be estimated using models from Williams et al. 2017. Thus:
 
-$E_{sonar} = P_{in} \times t_d + P_{out}(v_f) \times t_f$
+$$E_{sonar} = P_{in} \times t_d + P_{out}(v_f) \times t_f$$
 
 Where E~sonar~ is the energy cost of sonar exposure, P~in~ is the rate of energy intake when foraging, t~d~ is the displacement time, P~out~ is the rate of energy expenditure at the flight velocity (v~f~), and t~f~ is the flight time.
 
@@ -72,8 +74,9 @@ ggplot(Ep_tbl, aes(M, Ep, color = Clade)) +
 ```{r lit, echo = FALSE, results = "asis"}
 refs <- tibble(Reference = c("Tyack et al. 2011", "DeRuiter et al. 2017", "DeRuiter et al. 2013", "Friedlaender et al. 2016", "Goldbogen et al. 2013", "Kvadsheim et al. 2017", "Southall et al. 2019"),
                Species = c("Mesoplodon densirostris", "Balaenoptera musculus", "Ziphius cavirostris", "Balaenoptera musculus", "Balaenoptera musculus", "Balaenoptera acutorostrata", "Ziphius cavirostris"),
-               N_tags = c(1, 37, 2, 9, 17, 4, 0),
+               Tags = c(1, 37, 2, 9, 17, 4, 0),
                Notes = c("Only 1 tag, but other data from sonar array", "How did the transition probability from deep feeding to other states change in CEEs?", "Reduced time foraging in response to proximal sonar, but not distant", "Includes prey data", "Basis for Friedlaender et al. 2016 and DeRuiter et al. 2017", "SoCal + Norway. 1 CEE + 1 control in each location", "Prey distribution in SoCal sonar array"))
 
-knitr::kable(refs)
+kable(refs, "latex", booktabs = TRUE) %>% 
+  column_spec(4, width = "18em")
 ```
