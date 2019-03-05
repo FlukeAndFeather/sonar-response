@@ -29,7 +29,7 @@ $$E_{sonar} = P_{in} \times t_d + P_{out}(v_f) \times t_f$$
 
 Where E~sonar~ is the energy cost of sonar exposure, P~in~ is the rate of energy intake when foraging, t~d~ is the displacement time, P~out~ is the rate of energy expenditure at the flight velocity (v~f~), and t~f~ is the flight time.
 
-## Functional responses
+# Functional responses
 
 *In progress*
 
@@ -37,7 +37,7 @@ Where E~sonar~ is the energy cost of sonar exposure, P~in~ is the rate of energy
 
 ```
 
-## Energetic parameters
+# Energetic parameters
 
 I'm estimating P~in~ as the product of energy acquired per feeding event (E~p~) and feeding rate (r~f~). Energy acquired from prey scales sublinearly among odontocetes [E~p~=0.12M~c~^0.81^] but superlinearly among mysticetes [E~p~=5.83M~c~^2.37^]. *Note: Jeremy's paper has a negative coefficient for mysticete E~p~ scaling (v8.3:115) but I think that's a mistake.*
 
@@ -70,8 +70,137 @@ ggplot(Ep_tbl, aes(M, Ep, color = Clade)) +
 
 *If I understand correctly, E~p~ is energy per feeding event. But how do I get feeding rate? Figure 2 in Jeremy's paper has [feeding events / dive] ~ [dive time - TADL]. Can we get feeding rates from something like that?*
 
-## Literature
-```{r lit, echo = FALSE, results = "asis"}
+## Empirical feeding rates
+
+Prey data from "Cetacea model output BOUT_EXTANT.csv". NOTE: *Ziphius* prey data doesn't sum to 100%.
+
+```{r feeding_rates, results = "asis"}
+study_species <- c("Balaenoptera musculus",   # Blue whale
+                   "Berardius bairdii",       # Baird's beaked whale
+                   "Mesoplodon densirostris", # Blainville's beaked whale
+                   "Ziphius cavirostris")     # Cuvier's beaked whale
+prey_data <- read_csv("data/Cetacea model output BOUT_EXTANT.csv") %>% 
+  mutate(binomial = paste(Genus, Species)) %>% 
+  filter(binomial %in% study_species,
+         `MR exponent` == 0.45)  # data duplicated for multiple MR exponent values
+
+# NOTE: Ziphius prey data doesn't sum to 100% 
+prey_data %>% 
+  group_by(binomial) %>%
+  summarize(SumPercent = sum(Percent)) %>% 
+  rename(Species = binomial, `Sum of prey percentages` = SumPercent) %>% 
+  kable("latex", booktabs = TRUE)
+```
+
+### Blue whales
+
+```{r bw_feeding_rate}
+rorqual_data <- read_csv("data/lunge_rates_from_Paolo.csv") %>%
+  filter(species == "bw") %>% 
+  mutate(duration_h = `deployment-time_secs` / 60 / 60,
+         binomial = "Balaenoptera musculus",
+         lunge_h = total_lunges / duration_h)
+
+bw_lungerate <- rorqual_data %>% 
+  filter(duration_h >= 24) %>%
+  summarize(lunge_rate = mean(lunge_h)) %>% 
+  `[[`(1) %>% 
+  round(digits = 1)
+```
+
+How should lunge rate be calculated? Lunge rates from tags that lasted more than a day are lower because they capture night time. Should we use the mean lunge rate from <1 day tags because that's the opportunity cost? Or should we use the mean lunge rate from >1 day tags to be conservative? I'm going with the latter for now, which is *`r bw_lungerate` lunges/hour*.
+
+```{r}
+rorqual_data %>% 
+  mutate(dur_cat = factor(ifelse(duration_h < 24, "< 1 day", "> 1 day"),
+                          levels = c("< 1 day", "> 1 day"))) %>% 
+  ggplot(aes(dur_cat, lunge_h)) +
+  geom_boxplot() +
+  geom_jitter(width = 0.2, height = 0) +
+  labs(y = "Lunges per hour") +
+  theme_classic() +
+  theme(axis.title.x = element_blank())
+```
+
+### Beaked whales
+```{r beaked_feeding_rates}
+odontocete_data <- read_csv("data/foragestats_combined_ko2.csv") %>%
+  mutate(binomial = str_replace(Species, "_", " ")) %>% 
+  filter(taxa == "O",
+         binomial %in% study_species) %>% 
+  separate(Species, into = c("Genus", "Species"), sep = "_")
+```
+
+We have limited beaked whale data. Mean hourly feeding rates are 4.6 for *Berardius* (but N = 1) and ~13 for *Mesoplodon* and *Ziphius*.
+
+```{r, results = "asis"}
+odontocete_data %>%  
+  group_by(Species = binomial) %>% 
+  summarize(N = n(),
+            `Buzz rate (per hour)` = (total_buzz_count / total_duration_h) %>% 
+              mean %>% 
+              round(digits = 1)) %>% 
+  kable("latex", booktabs = TRUE)
+```
+
+## Empirical prey size distributions
+
+Blue whales engulf several orders of magnitude more energy per feeding event than beaked whales (no surprise there).
+
+```{r fig.width=5}
+prey_data %>%
+  mutate(binomial = str_replace(binomial, " ", "\n")) %>% 
+  uncount(weights = Percent) %>% 
+  ggplot(aes(binomial, `Energy (kJ)`)) +
+  geom_boxplot() +
+  scale_y_log10(name = "Energy (kJ)",
+                labels = comma) +
+  theme_classic() +
+  theme(axis.title.x = element_blank())
+```
+
+## Power in
+
+$$P_{in} = E_{p} \times r_{f}$$
+
+Where P~in~ is the rate of energy intake (kJ/hour), E~p~ is the energy from in one feeding event (kJ), and r~f~ is the feeding rate (feeding events/hour). The following figure shows estimates of P~in~ for the four study species. Error bars are calculated as $(mean(E_p) \pm sd(E_p)) \times r_f$.
+
+```{r fig.width=4.5}
+Ep_tbl <- prey_data %>%
+  uncount(weights = Percent) %>% 
+  group_by(binomial) %>% 
+  summarize(Ep = mean(`Energy (kJ)`),
+            EpH = Ep + sd(`Energy (kJ)`),
+            EpL = Ep - sd(`Energy (kJ)`))
+
+rf_tbl <- rorqual_data %>% 
+  filter(duration_h >= 24) %>%
+  group_by(binomial) %>% 
+  summarize(rf = round(mean(lunge_h), 1)) %>% 
+  rbind(odontocete_data %>%  
+          group_by(binomial) %>% 
+          summarize(rf = round(mean(total_buzz_count / total_duration_h), 1)))
+
+Pin_tbl <- inner_join(Ep_tbl, rf_tbl, by = "binomial") %>% 
+  mutate(Pin = Ep * rf,
+         PinL = EpL * rf,
+         PinH = EpH * rf)
+
+Pin_tbl %>% 
+  mutate(binomial = str_replace(binomial, " ", "\n")) %>% 
+  ggplot(aes(x = binomial)) +
+  geom_col(aes(y = Pin)) +
+  geom_errorbar(aes(ymin = PinL,
+                    ymax = PinH),
+                width = 0.25) +
+  scale_y_log10(name = "Energy (kJ)",
+                labels = comma) +
+  theme_classic() +
+  theme(axis.title.x = element_blank())
+```
+
+# Literature
+```{r lit, results = "asis"}
 refs <- tibble(Reference = c("Tyack et al. 2011", "DeRuiter et al. 2017", "DeRuiter et al. 2013", "Friedlaender et al. 2016", "Goldbogen et al. 2013", "Kvadsheim et al. 2017", "Southall et al. 2019"),
                Species = c("Mesoplodon densirostris", "Balaenoptera musculus", "Ziphius cavirostris", "Balaenoptera musculus", "Balaenoptera musculus", "Balaenoptera acutorostrata", "Ziphius cavirostris"),
                Tags = c(1, 37, 2, 9, 17, 4, 0),
