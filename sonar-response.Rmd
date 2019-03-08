@@ -333,6 +333,40 @@ transmute(odontocete_fluking,
         legend.title = element_blank())
 ```
 
+These scaling relationships give us the following fluking frequencies:
+
+```{r results="asis"}
+morphologies <- read_csv("data/foragestats_combined_ko2.csv") %>% 
+  mutate(Species = str_replace(Species, "_", " ")) %>% 
+  filter(Species %in% study_species) %>% 
+  group_by(Species) %>% 
+  summarize(Length = first(Body_length_m),
+            Mass = first(Body_mass_kg))
+
+scale_fluke_freq <- function(clade, length) {
+  myst_slope <- mysticete_coef$Slope
+  myst_int <- mysticete_coef$Intercept
+  odont_slope <- odontocete_coef$Slope
+  odont_int <- odontocete_coef$Intercept
+  ifelse(clade == "M",
+         10 ^ (log10(length) * myst_slope + myst_int),
+         10 ^ (log10(length) * odont_slope + odont_int))    
+}
+
+fluke_freq_tbl <- morphologies %>% 
+  select(Species, Length) %>% 
+  mutate(clade = ifelse(Species == "Balaenoptera musculus",
+                        "M", "O"),
+         FlukeFreq = scale_fluke_freq(clade, Length)) %>%
+  select(-clade)
+
+fluke_freq_tbl %>% 
+  mutate(FlukeFreq = round(FlukeFreq, 3)) %>%
+  rename(`Length (m)` = Length,
+         `Fluking frequency (Hz)` = FlukeFreq) %>% 
+  kable("latex", booktabs = TRUE)
+```
+
 # Literature
 ```{r lit, results = "asis"}
 refs <- tibble(Reference = c("Tyack et al. 2011", "DeRuiter et al. 2017", "DeRuiter et al. 2013", "Friedlaender et al. 2016", "Goldbogen et al. 2013", "Kvadsheim et al. 2017", "Southall et al. 2019"),
