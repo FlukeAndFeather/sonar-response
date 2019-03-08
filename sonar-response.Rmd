@@ -14,6 +14,8 @@ library(tidyverse)
 library(scales)
 library(knitr)
 library(kableExtra)
+library(lmodel2)
+library(ggsci)
 ```
 
 What are the energetic consequences for cetaceans when exposed to sonar? The following model makes a first order approximation by estimating (1) the energy intake lost to foraging cessation and (2) the additional energy expenditure from increased swim speeds. We considered these two factors in four potential scenarios: 
@@ -25,9 +27,9 @@ What are the energetic consequences for cetaceans when exposed to sonar? The fol
 
 The model will be paramterized using data and models from other sources (see table at the end of this document). Functional responses (e.g. displacement distance and duration) will come from the literature. The energy cost of lost feeding opportunities will be estimated with the scaling relationships in Jeremy's scaling paper. The energy cost of increased swim speeds during flight will be estimated using models from Williams et al. 2017. Thus:
 
-$$E_{sonar} = P_{in} \times t_d + P_{out}(v_f) \times t_f$$
+$$E_{sonar} = P_{in} \times t_d + P_{out} \times t_f$$
 
-Where E~sonar~ is the energy cost of sonar exposure, P~in~ is the rate of energy intake when foraging, t~d~ is the displacement time, P~out~ is the rate of energy expenditure at the flight velocity (v~f~), and t~f~ is the flight time.
+Where E~sonar~ is the energy cost of sonar exposure, P~in~ is the rate of energy intake when foraging, t~d~ is the displacement time, P~out~ is the increase in energy expenditure from locomotion due to the flight response, and t~f~ is the flight time.
 
 # Functional responses
 
@@ -197,6 +199,138 @@ Pin_tbl %>%
                 labels = comma) +
   theme_classic() +
   theme(axis.title.x = element_blank())
+```
+
+## Power out
+
+$$P_{out} = f_f \times m \times (C_{L.max} - C_{L.pref})$$
+
+Where f~f~ is the fluking frequency, **m** is the mass of the animal, C~L.max~ is the mass-specific cost of locomotion at maximum energetic output and C~L.pref~ is the cost of locomotion at the prefered energetic output. Williams et al. 2017 calculated C~L~ as:
+
+$$C_{L.pref} = 1.46 + 0.0005m \\
+C_{L.max} = 5.17 + 0.0002m$$
+
+(see equations 6 and 7)
+
+### Fluking frequencies
+```{r}
+# Load fluking data
+# Frank's data
+odontocete_fluking <- read_csv('data/Data From Frank.csv') %>% 
+  mutate(binomial = recode(Species,
+                           "D. leucas" = "Delphinapterus leucas",
+                      "G. macrorhynchus" = "Globicephala macrorhynchus",
+                      "L. obliquidens" = "Lagenorhynchus obliquidens",
+                      "O. orca" = "Orcinus orca",
+                      "P. crassidens" = "Pseudorca crassidens",
+                      "S. ceruleoalba" = "Stenella coeruleoalba",
+                      "T. truncatus" = "Tursiops truncatus"))
+
+# Will's data. Conversion from XLSX was messy
+mysticete_fluking <- read_csv('data/Whale PRH Master List.csv') %>% 
+  slice(1:60) %>% 
+  select(-(X27:X33)) %>% 
+  mutate(species_code = str_sub(`Deployment Name`, 1, 2),
+         binomial = recode(species_code,
+                           bb = "Balaenoptera bonaerensis",
+                           be = "Balaenoptera edeni",
+                           bp = "Balaenoptera physalus",
+                           bw = "Balaenoptera musculus",
+                           mn = "Megaptera novaeangliae"))
+
+# Standard major axis regression
+SMA <- 3
+odontocete_model <- lmodel2(log10(`Frequency (Hz)`) ~ log10(`Length (m)`),
+                            data = odontocete_fluking)
+odontocete_coef <- odontocete_model$regression.results[SMA,]
+mysticete_model <- lmodel2(log10(`Tailbeat Frequency (Hz)`) ~ log10(`Length`),
+                            data = mysticete_fluking)
+mysticete_coef <- mysticete_model$regression.results[SMA,]
+```
+
+Fluking frequency in odontocetes scales with length as $log_{10}(f)=-1.686 \times log_{10}(m) + 1.062$.
+```{r fig.width=5.5, fig.height=4}
+ggplot(odontocete_fluking, aes(`Length (m)`, `Frequency (Hz)`)) +
+  geom_point(aes(color = Species)) +
+  geom_abline(intercept = odontocete_coef$Intercept,
+              slope = odontocete_coef$Slope,
+              linetype = "dashed") +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(x = expression(log[10](Length) * " " * (m)),
+       y = expression(log[10](Frequency) * " " * (Hz)),
+       color = "Species") +
+  theme_classic() +
+  guides(color = guide_legend(nrow = 2)) +
+  theme(legend.position = "bottom",
+        legend.title = element_blank())
+```
+
+Fluking frequency in mysticetes scales with length as $log_{10}(f)=-0.529 \times log_{10}(m) - 0.038$.
+
+```{r fig.width=5.5, fig.height=4}
+mysticete_fluking %>% 
+  mutate(abbr = paste(str_sub(binomial, 1, 1), 
+                      str_extract(binomial, " .*"), 
+                      sep = ".")) %>% 
+  ggplot(aes(`Length`, `Tailbeat Frequency (Hz)`)) +
+  geom_point(aes(color = abbr)) +
+  geom_abline(intercept = mysticete_coef$Intercept,
+              slope = mysticete_coef$Slope,
+              linetype = "dashed") +
+  scale_x_log10() +
+  scale_y_log10() +
+  labs(x = expression(log[10](Length) * " " * (m)),
+       y = expression(log[10](Frequency) * " " * (Hz)),
+       color = "Species") +
+  theme_classic() +
+  guides(color = guide_legend(nrow = 2)) +
+  theme(legend.position = "bottom",
+        legend.title = element_blank())
+```
+
+They don't look terribly similar when plotted together.
+
+```{r}
+odontocete_line <- odontocete_fluking %>% 
+  summarize(L1 = min(`Length (m)`),
+            L2 = max(`Length (m)`)) %>% 
+  mutate(F1 = 10^(log10(L1) * odontocete_coef$Slope + odontocete_coef$Intercept),
+         F2 = 10^(log10(L2) * odontocete_coef$Slope + odontocete_coef$Intercept),
+         clade = "odontocete")
+mysticete_line <- mysticete_fluking %>% 
+  summarize(L1 = min(Length),
+            L2 = max(Length)) %>% 
+  mutate(F1 = 10^(log10(L1) * mysticete_coef$Slope + mysticete_coef$Intercept),
+         F2 = 10^(log10(L2) * mysticete_coef$Slope + mysticete_coef$Intercept),
+         clade = "mysticete")
+sma_lines = rbind(odontocete_line, mysticete_line)
+transmute(odontocete_fluking,
+          length = `Length (m)`, 
+          freq = `Frequency (Hz)`,
+          abbr = Species,
+          clade = "Odontocete") %>% 
+  rbind(transmute(mysticete_fluking,
+                  length = Length,
+                  freq = `Tailbeat Frequency (Hz)`,
+                  abbr = paste(str_sub(binomial, 1, 1), 
+                               str_extract(binomial, " .*"), 
+                               sep = "."),
+                  clade = "Mysticete")) %>% 
+  ggplot(aes(length, freq)) +
+  geom_point(aes(color = clade)) +
+  geom_segment(aes(x = L1, y = F1,
+                   xend = L2, yend = F2),
+               sma_lines,
+               linetype = "dashed") +
+  scale_x_log10() +
+  scale_y_log10() +
+  scale_color_aaas() +
+  labs(x = expression(log[10](Length) * " " * (m)),
+       y = expression(log[10](Frequency) * " " * (Hz))) +
+  theme_classic() +
+  theme(legend.position = c(0.75, 0.75),
+        legend.title = element_blank())
 ```
 
 # Literature
