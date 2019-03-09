@@ -16,6 +16,12 @@ library(knitr)
 library(kableExtra)
 library(lmodel2)
 library(ggsci)
+
+abbr_binom = function(binom) {
+  paste(str_sub(binom, 1, 1), 
+        str_extract(binom, " .*"), 
+        sep = ".")
+}
 ```
 
 What are the energetic consequences for cetaceans when exposed to sonar? The following model makes a first order approximation by estimating (1) the energy intake lost to foraging cessation and (2) the additional energy expenditure from increased swim speeds. We considered these two factors in four potential scenarios: 
@@ -74,24 +80,18 @@ ggplot(Ep_tbl, aes(M, Ep, color = Clade)) +
 
 ## Empirical feeding rates
 
-Prey data from "Cetacea model output BOUT_EXTANT.csv". NOTE: *Ziphius* prey data doesn't sum to 100%.
+Prey data from "Cetacea model output BOUT_EXTANT_v2.csv".
 
 ```{r feeding_rates, results = "asis"}
 study_species <- c("Balaenoptera musculus",   # Blue whale
                    "Berardius bairdii",       # Baird's beaked whale
                    "Mesoplodon densirostris", # Blainville's beaked whale
                    "Ziphius cavirostris")     # Cuvier's beaked whale
-prey_data <- read_csv("data/Cetacea model output BOUT_EXTANT.csv") %>% 
+# Model output v2 includes fixes to the Zc prey data
+prey_data <- read_csv("data/Cetacea model output BOUT_EXTANT_v2.csv") %>% 
   mutate(binomial = paste(Genus, Species)) %>% 
   filter(binomial %in% study_species,
          `MR exponent` == 0.45)  # data duplicated for multiple MR exponent values
-
-# NOTE: Ziphius prey data doesn't sum to 100% 
-prey_data %>% 
-  group_by(binomial) %>%
-  summarize(SumPercent = sum(Percent)) %>% 
-  rename(Species = binomial, `Sum of prey percentages` = SumPercent) %>% 
-  kable("latex", booktabs = TRUE)
 ```
 
 ### Blue whales
@@ -372,15 +372,16 @@ CLpref_fun <- function(m) 1.46 + 0.0005 * m
 CLmax_fun <- function(m) 5.17 + 0.0002 * m
 Pout_fun <- function(m, f) f * m * (CLmax_fun(m) - CLpref_fun(m))
 
-pout_tbl <- fluke_freq_tbl %>% 
+Pout_tbl <- fluke_freq_tbl %>% 
   left_join(select(morphologies, Species, Mass), by = "Species") %>% 
+  rename(binomial = Species) %>% 
   mutate(CLpref = CLpref_fun(Mass),
          CLmax = CLmax_fun(Mass),
          Pout = Pout_fun(Mass, FlukeFreq))
 
-pout_tbl %>% 
-  mutate(Species = paste(str_sub(Species, 1, 1), 
-                         str_extract(Species, " .*"), 
+Pout_tbl %>% 
+  mutate(Species = paste(str_sub(binomial, 1, 1), 
+                         str_extract(binomial, " .*"), 
                          sep = ".")) %>% 
   
   rename(`Mass (kg)` = Mass,
@@ -396,6 +397,37 @@ pout_tbl %>%
 ```
 
 This shows the scaling relationship between cost of locomotion and body length derived for odontocetes in Williams et al. 2017 cannot be applied to an animal the size of a blue whale. Furthermore, I don't think the *Berardius* fluke frequency estimate is reliable because 1) *Berardius* is 69% longer than the longest odontocete in the fluking data (*O. orca*, 6.22 m) and 2) the mysticete fluking model wasn't the strongest predictor (*r^2^=`r sprintf("%.2f", odontocete_model$rsquare)`*).
+
+# Modeled energy costs of sonar exposure
+## Beaked whales
+
+TODO: finish functional response section and get good estimates for *t~d~* and *t~f~*. For now, let's say Mesoplodon and Ziphius are both displaced for 30 minutes and flee for 10 minutes.
+
+```{r}
+functional_responses <- tibble(binomial = c("Mesoplodon densirostris",
+                                            "Ziphius cavirostris"),
+                               t_d_min = c(30, 30),
+                               t_f_min = c(10, 10))
+
+E_sonar_tbl <- functional_responses %>% 
+  left_join(Pin_tbl, by = "binomial") %>% 
+  left_join(Pout_tbl, by = "binomial") %>% 
+  mutate(E_in_J = Pin * t_d_min * 60,
+         E_out_J = Pout * t_f_min * 60,
+         E_sonar_J = E_in_J + E_out_J)
+
+E_sonar_tbl %>% 
+  mutate(binom = abbr_binom(binomial)) %>% 
+  gather(E, val, E_in_J, E_out_J) %>% 
+  ggplot(aes(binom, val, fill = E)) +
+  geom_col() +
+  scale_y_continuous(labels = comma) +
+  scale_color_aaas() +
+  labs(x = "Species",
+       y = "Energy cost (kJ)") +
+  theme_classic() +
+  theme(legend.title = element_blank())
+```
 
 # Literature
 ```{r lit, results = "asis"}
