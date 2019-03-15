@@ -203,180 +203,64 @@ Pin_tbl %>%
 
 ## Power out
 
-$$P_{out} = f_f \times m \times (C_{L.max} - C_{L.pref})$$
+$$P_{out} = (f_{max} - f_{pref}) \times m \times C_L$$
 
-Where *f~f~* is the fluking frequency, *m* is the mass of the animal, *C~L.max~* is the mass-specific cost of locomotion at maximum energetic output and *C~L.pref~* is the cost of locomotion at the prefered energetic output. Williams et al. 2017 calculated *C~L~* as:
+Where *f~max~* is the fluking frequency at maximum speed, *f~pref~* is the fluking frequency at the preferred cruising speed, *m* is the mass of the animal, *C~L~* is the mass-specific cost of locomotion. Williams et al. 2017 calculated *C~L~* for cruising speeds:
 
-$$C_{L.pref} = 1.46 + 0.0005m$$
-$$C_{L.max} = 5.17 + 0.0002m$$
-
-(see equations 6 and 7)
+$$C_L = 1.46 + 0.0005m$$
+(see equations 6)
 
 ### Fluking frequencies
-```{r}
-# Load fluking data
-# Frank's data
-odontocete_fluking <- read_csv('data/Data From Frank.csv') %>% 
-  mutate(binomial = recode(Species,
-                           "D. leucas" = "Delphinapterus leucas",
-                      "G. macrorhynchus" = "Globicephala macrorhynchus",
-                      "L. obliquidens" = "Lagenorhynchus obliquidens",
-                      "O. orca" = "Orcinus orca",
-                      "P. crassidens" = "Pseudorca crassidens",
-                      "S. ceruleoalba" = "Stenella coeruleoalba",
-                      "T. truncatus" = "Tursiops truncatus"))
 
-# Will's data. Conversion from XLSX was messy
-mysticete_fluking <- read_csv('data/Whale PRH Master List.csv') %>% 
-  slice(1:60) %>% 
-  select(-(X27:X33)) %>% 
-  mutate(species_code = str_sub(`Deployment Name`, 1, 2),
-         binomial = recode(species_code,
-                           bb = "Balaenoptera bonaerensis",
-                           be = "Balaenoptera edeni",
-                           bp = "Balaenoptera physalus",
-                           bw = "Balaenoptera musculus",
-                           mn = "Megaptera novaeangliae"))
+1. Cruising speed (U~pref~) is 1.5 m/s (Sato et al. 2007)
+2. Max speed (U~max~) from Hirt et al. 2017
+$$U_{max} = aM^b(1-e^{-hM^i})$$
+  + For swimming, a = 11.2, b = 0.36, h = 19.5, i = -0.56
+3. Fluking frequency based on a fixed Strouhal number of 0.3
+$$S_t = \frac{f}{U} A$$
+A is about $\frac{L}{5}$
+$$S_t = \frac{f}{U} \frac{L}{5}$$
+$$f = 5S_t\frac{U}{L}$$
+$$f = 1.5\frac{U}{L}$$
 
-# Standard major axis regression
-SMA <- 3
-odontocete_model <- lmodel2(log10(`Frequency (Hz)`) ~ log10(`Length (m)`),
-                            data = odontocete_fluking)
-odontocete_coef <- odontocete_model$regression.results[SMA,]
-mysticete_model <- lmodel2(log10(`Tailbeat Frequency (Hz)`) ~ log10(`Length`),
-                            data = mysticete_fluking)
-mysticete_coef <- mysticete_model$regression.results[SMA,]
-```
+Given the equations for $P_{out}$, $f$, and $C_L$, the estimates for power expended from increased fluking are:
 
-Fluking frequency in odontocetes scales with length as $log_{10}(f)=-1.686 \times log_{10}(m) + 1.062$, but not a lot of variance explained (*r^2^=`r sprintf("%.2f", odontocete_model$rsquare)`*). Data from Frank Fish via Will G.
-
-```{r fig.width=5, fig.height=3.5}
-ggplot(odontocete_fluking, aes(log10(`Length (m)`), log10(`Frequency (Hz)`))) +
-  geom_point(aes(color = Species),
-             size = 1) +
-  geom_abline(intercept = odontocete_coef$Intercept,
-              slope = odontocete_coef$Slope,
-              linetype = "dashed") +
-  scale_color_brewer(palette = "Dark2") +
-  labs(x = expression(log[10](Length) * " " * (m)),
-       y = expression(log[10](Frequency) * " " * (Hz)),
-       color = "Species") +
-  theme_classic(base_size = 7) +
-  guides(color = guide_legend(ncol = 1)) +
-  theme(legend.title = element_blank())
-```
-
-Fluking frequency in mysticetes scales with length as $log_{10}(f)=-0.529 \times log_{10}(m) - 0.038$. These are Will's data. Much more variance explained than for odontocetes (*r^2^=`r sprintf("%.2f", mysticete_model$rsquare)`*)
-
-```{r fig.width=5, fig.height=3.5}
-mysticete_fluking %>% 
-  mutate(abbr = paste(str_sub(binomial, 1, 1), 
-                      str_extract(binomial, " .*"), 
-                      sep = ".")) %>% 
-  ggplot(aes(log10(`Length`), log10(`Tailbeat Frequency (Hz)`))) +
-  geom_point(aes(color = abbr),
-             size = 1) +
-  geom_abline(intercept = mysticete_coef$Intercept,
-              slope = mysticete_coef$Slope,
-              linetype = "dashed") +
-  scale_color_brewer(palette = "Set1") +
-  labs(x = expression(log[10](Length) * " " * (m)),
-       y = expression(log[10](Frequency) * " " * (Hz)),
-       color = "Species") +
-  theme_classic(base_size = 7) +
-  guides(color = guide_legend(ncol = 1)) +
-  theme(legend.title = element_blank())
-```
-
-They don't look terribly similar when plotted together.
-
-```{r}
-odontocete_line <- odontocete_fluking %>% 
-  summarize(L1 = log10(min(`Length (m)`)),
-            L2 = log10(max(`Length (m)`))) %>% 
-  mutate(F1 = L1 * odontocete_coef$Slope + odontocete_coef$Intercept,
-         F2 = L2 * odontocete_coef$Slope + odontocete_coef$Intercept,
-         clade = "odontocete")
-mysticete_line <- mysticete_fluking %>% 
-  summarize(L1 = log10(min(Length)),
-            L2 = log10(max(Length))) %>% 
-  mutate(F1 = L1 * mysticete_coef$Slope + mysticete_coef$Intercept,
-         F2 = L2 * mysticete_coef$Slope + mysticete_coef$Intercept,
-         clade = "mysticete")
-sma_lines = rbind(odontocete_line, mysticete_line)
-transmute(odontocete_fluking,
-          length = `Length (m)`, 
-          freq = `Frequency (Hz)`,
-          abbr = Species,
-          clade = "Odontocete") %>% 
-  rbind(transmute(mysticete_fluking,
-                  length = Length,
-                  freq = `Tailbeat Frequency (Hz)`,
-                  abbr = paste(str_sub(binomial, 1, 1), 
-                               str_extract(binomial, " .*"), 
-                               sep = "."),
-                  clade = "Mysticete")) %>% 
-  ggplot(aes(log10(length), log10(freq))) +
-  geom_point(aes(color = clade),
-             size = 1) +
-  geom_segment(aes(x = L1, y = F1,
-                   xend = L2, yend = F2),
-               sma_lines,
-               linetype = "dashed") +
-  scale_color_aaas() +
-  labs(x = expression(log[10](Length) * " " * (m)),
-       y = expression(log[10](Frequency) * " " * (Hz))) +
-  theme_classic(base_size = 7) +
-  theme(legend.position = c(0.75, 0.75),
-        legend.title = element_blank())
-```
-
-These scaling relationships give us the following fluking frequencies:
-
-```{r results="asis"}
+```{r, results="asis"}
 morphologies <- read_csv("data/foragestats_combined_ko2.csv") %>% 
   mutate(Species = str_replace(Species, "_", " ")) %>% 
-  filter(Species %in% study_species) %>% 
   group_by(Species) %>% 
   summarize(Length = first(Body_length_m),
             Mass = first(Body_mass_kg))
+  
+# Williams et al. 2017
+CL_fun <- function(m) 1.46 + 0.0005 * m
+# Hirt et al. 2017
+Umax_fun <- function(m) {
+  u_kph <- 11.2 * m ^ 0.36 * (1 - exp(-19.5 * m ^ -0.56))
+  u_ms <- u_kph * 1000 / 3600
+  u_ms
+} 
+# Sato et al. 2007
+f_pref_fun <- function(m) 3.56 * m ^ -0.29
+U_pref <- 1.5 #m/s
+# Based on a fixed Strouhal number of 0.3
+f_fun <- function(u, l) 1.5 * u / l
 
-scale_fluke_freq <- function(clade, length) {
-  myst_slope <- mysticete_coef$Slope
-  myst_int <- mysticete_coef$Intercept
-  odont_slope <- odontocete_coef$Slope
-  odont_int <- odontocete_coef$Intercept
-  ifelse(clade == "M",
-         10 ^ (log10(length) * myst_slope + myst_int),
-         10 ^ (log10(length) * odont_slope + odont_int))    
+# As defined here
+Pout_fun <- function(m, l) {
+  U_max <- Umax_fun(m)
+  f_max <- f_fun(U_max, l)
+  f_pref <- f_fun(U_pref, l)
+  (f_max - f_pref) * m * CL_fun(m)
 }
 
-fluke_freq_tbl <- morphologies %>% 
-  select(Species, Length) %>% 
-  mutate(clade = ifelse(Species == "Balaenoptera musculus",
-                        "M", "O"),
-         FlukeFreq = scale_fluke_freq(clade, Length)) %>%
-  select(-clade)
-
-fluke_freq_tbl %>% 
-  mutate(FlukeFreq = round(FlukeFreq, 3)) %>%
-  rename(`Length (m)` = Length,
-         `Fluking frequency (Hz)` = FlukeFreq) %>% 
-  kable("latex", booktabs = TRUE)
-```
-
-Given the equations for $P_{out}$, $C_{L.pref}$, and $C_{L.max}$, the estimates for power expended from increased fluking are:
-
-```{r, results="asis"}
-CLpref_fun <- function(m) 1.46 + 0.0005 * m
-CLmax_fun <- function(m) 5.17 + 0.0002 * m
-Pout_fun <- function(m, f) f * m * (CLmax_fun(m) - CLpref_fun(m))
-
-pout_tbl <- fluke_freq_tbl %>% 
-  left_join(select(morphologies, Species, Mass), by = "Species") %>% 
-  mutate(CLpref = CLpref_fun(Mass),
-         CLmax = CLmax_fun(Mass),
-         Pout = Pout_fun(Mass, FlukeFreq))
+pout_tbl <- morphologies %>% 
+  mutate(U_max = Umax_fun(Mass),
+         f_max = f_fun(U_max, Length),
+         f_pref1 = f_fun(U_pref, Length),
+         f_pref2 = f_pref_fun(Mass),
+         CL = CL_fun(Mass),
+         Pout = Pout_fun(Mass, Length))
 
 pout_tbl %>% 
   mutate(Species = paste(str_sub(Species, 1, 1), 
@@ -385,17 +269,22 @@ pout_tbl %>%
   
   rename(`Mass (kg)` = Mass,
          `Length (m)` = Length,
-         `$C_{L.pref}$` = CLpref,
-         `$C_{L.max}$` = CLmax,
-         `$f_f (Hz)$` = FlukeFreq,
+         `$U_{max} (m/s)$` = U_max,
+         `$f_{max} (Hz)$` = f_max,
+         `$f_{pref1} (Hz)$` = f_pref1,
+         `$f_{pref2} (Hz)$` = f_pref2,
+         `$C_L$` = CL,
          `$P_{out} (W)$` = Pout) %>% 
   kable("latex", booktabs = TRUE, escape = FALSE,
-        digits = c(0, 1, 3, 0, 2, 2, 0)) %>% 
-  footnote("$C_L$ is in units of $J kg^{-1} stroke^{-1}$",
+        digits = c(0, 1, 0, 1, 2, 2, 2, 1, 0)) %>% 
+  footnote(c("$C_L$ is in units of $J kg^{-1} stroke^{-1}$",
+             "$f_{pref1}$ calculated using a Strouhal number of 0.3 at a cruising speed of 1.5 m/s",
+             "$f_{pref2}$ calculated with the scaling relationship in Sato et al. 2007",
+             "$P_{out}$ calculated with $f_{pref1}$"),
            escape = FALSE)
 ```
 
-This shows the scaling relationship between cost of locomotion and body length derived for odontocetes in Williams et al. 2017 cannot be applied to an animal the size of a blue whale. Furthermore, I don't think the *Berardius* fluke frequency estimate is reliable because 1) *Berardius* is 69% longer than the longest odontocete in the fluking data (*O. orca*, 6.22 m) and 2) the mysticete fluking model wasn't the strongest predictor (*r^2^=`r sprintf("%.2f", odontocete_model$rsquare)`*).
+Mass-specific locomotor costs get huge for big animals!
 
 # Literature
 ```{r lit, results = "asis"}
