@@ -47,7 +47,7 @@ Where E~sonar~ is the energy cost of sonar exposure, P~in~ is the rate of energy
 
 # Energetic parameters
 
-I'm estimating P~in~ as the product of energy acquired per feeding event (E~p~) and feeding rate (r~f~). Energy acquired from prey scales sublinearly among odontocetes [E~p~=0.12M~c~^0.81^] but superlinearly among mysticetes [E~p~=5.83M~c~^2.37^]. *Note: Jeremy's paper has a negative coefficient for mysticete E~p~ scaling (v8.3:115) but I think that's a mistake.*
+I'm estimating P~in~ as the product of energy acquired per feeding event (E~p~) and feeding rate (r~f~). Broadly speaking, energy acquired from prey scales sublinearly among odontocetes [E~p~=0.12M~c~^0.81^] but superlinearly among mysticetes [E~p~=5.83M~c~^2.37^]. *Note: Jeremy's paper has a negative coefficient for mysticete E~p~ scaling (v8.3:115) but I think that's a mistake. Also, what are the units of E~p~? kJ? Or is it scale invariant?*
 
 ```{r Ep_scaling}
 # Vaquita to sperm whale
@@ -65,18 +65,63 @@ Ep_tbl <- tibble(M = c(odo_m_rng, mys_m_rng),
                  Clade = factor(c(rep("Odontocete", 2), rep ("Mysticete", 2))),
                  Ep = Ep_fun(M, Clade))
 
+png_to_grob <- function(path) {
+  png::readPNG(path) %>% 
+    grid::rasterGrob(interpolate = TRUE)
+}
+grob_to_ann <- function(grob, x, y) {
+  annotation_custom(grob, x / 5, x * 5, y / 5, y * 5)
+}
+silh_tbl <- tibble(sp_code = c("Pp", "Pm", "Ba", "Bm"),
+                   mass = c(70, 15000, 6700, 93000),
+                   y = c(10^3, 10^5, 10^11, 10^11.5),
+                   path = c("img/Phocoena-phocoena.png",
+                             "img/Physeter-macrocephalus.png",
+                             "img/Balaenoptera-acutorostrata.png",
+                             "img/Balaenoptera-musculus.png")) %>% 
+  mutate(grob = map(path, png_to_grob))
+Pp_grob <- png::readPNG("img/Phocoena-phocoena.png") %>% 
+  grid::rasterGrob(x = 0.1,
+                   y = 0.15,
+                   width = 0.13,
+                   height = 0.08,
+                   interpolate = TRUE)
+Pm_grob <- png::readPNG("img/Physeter-macrocephalus.png") %>% 
+  grid::rasterGrob(x = 0.72,
+                   y = 0.28,
+                   width = 0.2,
+                   height = 0.12,
+                   interpolate = TRUE)
+Bb_grob <- png::readPNG("img/Balaenoptera-acutorostrata.png") %>% 
+  grid::rasterGrob(x = 0.52,
+                   y = 0.55,
+                   width = 0.16,
+                   height = 0.1,
+                   interpolate = TRUE)
+Bm_grob <- png::readPNG("img/Balaenoptera-musculus.png") %>% 
+  grid::rasterGrob(x = 0.82,
+                   y = 0.87,
+                   width = 0.25,
+                   height = 0.15,
+                   interpolate = TRUE)
+
 ggplot(Ep_tbl, aes(M, Ep, color = Clade)) + 
-  geom_line(size = 2) +
+  geom_line(size = 1.5) +
+  annotation_custom(Pp_grob) +
+  annotation_custom(Pm_grob) +
+  annotation_custom(Bb_grob) +
+  annotation_custom(Bm_grob) +
   scale_x_log10(name = "Mass (kg)",
-                labels = trans_format("log10", math_format(10 ^ .x))) +
-  scale_y_log10(name = "Energy from prey (Joules?)",
-                labels = trans_format("log10", math_format(10 ^ .x))) +
-  scale_color_brewer(type = "qual", palette = 6) +
-  theme_classic() +
+                labels = trans_format("log10", math_format(10 ^ .x)),
+                limits = c(50, 10^5.5)) +
+  scale_y_log10(name = "Energy from prey (kJ)",
+                labels = trans_format("log10", math_format(10 ^ .x)),
+                breaks = 10^seq(0, 15, by = 3),
+                limits = c(1, 10^15)) +
+  scale_color_aaas() +
+  theme_classic(base_size = 16) +
   theme(legend.position = c(.2, .8))
 ```
-
-*If I understand correctly, E~p~ is energy per feeding event. But how do I get feeding rate? Figure 2 in Jeremy's paper has [feeding events / dive] ~ [dive time - TADL]. Can we get feeding rates from something like that?*
 
 ## Empirical feeding rates
 
@@ -171,29 +216,29 @@ Where P~in~ is the rate of energy intake (kJ/hour), E~p~ is the energy from in o
 Ep_tbl <- prey_data %>%
   uncount(weights = Percent) %>% 
   group_by(binomial) %>% 
-  summarize(Ep = mean(`Energy (kJ)`),
-            EpH = Ep + sd(`Energy (kJ)`),
-            EpL = Ep - sd(`Energy (kJ)`))
+  summarize(Ep_kJ = mean(`Energy (kJ)`),
+            EpH_kJ = Ep_kJ + sd(`Energy (kJ)`),
+            EpL_kJ = Ep_kJ - sd(`Energy (kJ)`))
 
 rf_tbl <- rorqual_data %>% 
   filter(duration_h >= 24) %>%
   group_by(binomial) %>% 
-  summarize(rf = round(mean(lunge_h), 1)) %>% 
+  summarize(rf_h = round(mean(lunge_h), 1)) %>% 
   rbind(odontocete_data %>%  
           group_by(binomial) %>% 
-          summarize(rf = round(mean(total_buzz_count / total_duration_h), 1)))
+          summarize(rf_h = round(mean(total_buzz_count / total_duration_h), 1)))
 
 Pin_tbl <- inner_join(Ep_tbl, rf_tbl, by = "binomial") %>% 
-  mutate(Pin = Ep * rf,
-         PinL = EpL * rf,
-         PinH = EpH * rf)
+  mutate(Pin_kJ_h = Ep_kJ * rf_h,
+         PinL_kJ_h = EpL_kJ * rf_h,
+         PinH_kJ_h = EpH_kJ * rf_h)
 
 Pin_tbl %>% 
   mutate(binomial = str_replace(binomial, " ", "\n")) %>% 
   ggplot(aes(x = binomial)) +
-  geom_col(aes(y = Pin)) +
-  geom_errorbar(aes(ymin = PinL,
-                    ymax = PinH),
+  geom_col(aes(y = Pin_kJ_h)) +
+  geom_errorbar(aes(ymin = PinL_kJ_h,
+                    ymax = PinH_kJ_h),
                 width = 0.25) +
   scale_y_log10(name = "Energy (kJ)",
                 labels = comma) +
@@ -339,7 +384,9 @@ morphologies <- read_csv("data/foragestats_combined_ko2.csv") %>%
   filter(Species %in% study_species) %>% 
   group_by(Species) %>% 
   summarize(Length = first(Body_length_m),
-            Mass = first(Body_mass_kg))
+            Mass = first(Body_mass_kg)) %>% 
+  mutate(BMR_kcal_day = 70 * Mass ^ 0.75,
+         BMR_kJ_day = BMR_kcal_day * 4.184)
 
 scale_fluke_freq <- function(clade, length) {
   myst_slope <- mysticete_coef$Slope
@@ -355,13 +402,13 @@ fluke_freq_tbl <- morphologies %>%
   select(Species, Length) %>% 
   mutate(clade = ifelse(Species == "Balaenoptera musculus",
                         "M", "O"),
-         FlukeFreq = scale_fluke_freq(clade, Length)) %>%
+         fluke_freq_Hz = scale_fluke_freq(clade, Length)) %>%
   select(-clade)
 
 fluke_freq_tbl %>% 
-  mutate(FlukeFreq = round(FlukeFreq, 3)) %>%
+  mutate(fluke_freq_Hz = round(fluke_freq_Hz, 3)) %>%
   rename(`Length (m)` = Length,
-         `Fluking frequency (Hz)` = FlukeFreq) %>% 
+         `Fluking frequency (Hz)` = fluke_freq_Hz) %>% 
   kable("latex", booktabs = TRUE)
 ```
 
@@ -375,9 +422,9 @@ Pout_fun <- function(m, f) f * m * (CLmax_fun(m) - CLpref_fun(m))
 Pout_tbl <- fluke_freq_tbl %>% 
   left_join(select(morphologies, Species, Mass), by = "Species") %>% 
   rename(binomial = Species) %>% 
-  mutate(CLpref = CLpref_fun(Mass),
-         CLmax = CLmax_fun(Mass),
-         Pout = Pout_fun(Mass, FlukeFreq))
+  mutate(CLpref_J = CLpref_fun(Mass),
+         CLmax_J = CLmax_fun(Mass),
+         Pout_W = Pout_fun(Mass, fluke_freq_Hz))
 
 Pout_tbl %>% 
   mutate(Species = paste(str_sub(binomial, 1, 1), 
@@ -386,10 +433,10 @@ Pout_tbl %>%
   
   rename(`Mass (kg)` = Mass,
          `Length (m)` = Length,
-         `$C_{L.pref}$` = CLpref,
-         `$C_{L.max}$` = CLmax,
-         `$f_f (Hz)$` = FlukeFreq,
-         `$P_{out} (W)$` = Pout) %>% 
+         `$C_{L.pref}$` = CLpref_J,
+         `$C_{L.max}$` = CLmax_J,
+         `$f_f (Hz)$` = fluke_freq_Hz,
+         `$P_{out} (W)$` = Pout_W) %>% 
   kable("latex", booktabs = TRUE, escape = FALSE,
         digits = c(0, 1, 3, 0, 2, 2, 0)) %>% 
   footnote("$C_L$ is in units of $J kg^{-1} stroke^{-1}$",
@@ -401,32 +448,38 @@ This shows the scaling relationship between cost of locomotion and body length d
 # Modeled energy costs of sonar exposure
 ## Beaked whales
 
-TODO: finish functional response section and get good estimates for *t~d~* and *t~f~*. For now, let's say Mesoplodon and Ziphius are both displaced for 30 minutes and flee for 10 minutes.
+TODO: finish functional response section and get good estimates for *t~d~* and *t~f~*. For now, let's say Mesoplodon and Ziphius are both displaced for 30 minutes and flee for 10 minutes. This figure isn't meaningful, it's simply to demonstrate the calculations work.
 
 ```{r}
 functional_responses <- tibble(binomial = c("Mesoplodon densirostris",
                                             "Ziphius cavirostris"),
-                               t_d_min = c(30, 30),
-                               t_f_min = c(10, 10))
+                               t_d_min = c(6*60, 6*60),
+                               t_f_min = c(30, 30))
 
 E_sonar_tbl <- functional_responses %>% 
   left_join(Pin_tbl, by = "binomial") %>% 
   left_join(Pout_tbl, by = "binomial") %>% 
-  mutate(E_in_J = Pin * t_d_min * 60,
-         E_out_J = Pout * t_f_min * 60,
-         E_sonar_J = E_in_J + E_out_J)
+  # The units are a little wonky. Intake is in units of kJ/hour and output
+  # is in J/s (W).
+  mutate(E_in_kJ = Pin_kJ_h * t_d_min / 60,
+         E_out_kJ = Pout_W / 1000 * t_f_min * 60,
+         E_sonar_kJ = E_in_kJ + E_out_kJ)
 
 E_sonar_tbl %>% 
   mutate(binom = abbr_binom(binomial)) %>% 
-  gather(E, val, E_in_J, E_out_J) %>% 
+  gather(E, val, E_in_kJ, E_out_kJ) %>% 
+  mutate(E = recode(E, 
+                    E_in_kJ = "Energy intake",
+                    E_out_kJ = "Energy output")) %>% 
   ggplot(aes(binom, val, fill = E)) +
   geom_col() +
   scale_y_continuous(labels = comma) +
-  scale_color_aaas() +
+  scale_fill_aaas() +
   labs(x = "Species",
        y = "Energy cost (kJ)") +
-  theme_classic() +
-  theme(legend.title = element_blank())
+  theme_classic(base_size = 8) +
+  theme(legend.title = element_blank(),
+        legend.position = c(0.25, 0.8))
 ```
 
 # Literature
