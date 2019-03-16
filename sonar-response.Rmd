@@ -19,6 +19,11 @@ library(ggsci)
 
 # Load data
 # Morphological data
+abbr_binom = function(binom) {
+  paste(str_sub(binom, 1, 1), 
+        str_extract(binom, " .*"), 
+        sep = ".")
+}
 morphologies <- read_csv("data/foragestats_combined_ko2.csv") %>% 
   mutate(Species = str_replace(Species, "_", " ")) %>% 
   group_by(Species) %>% 
@@ -40,40 +45,44 @@ morphologies <- read_csv("data/foragestats_combined_ko2.csv") %>%
                          `Orcinus orca` = "Delphinidae",
                          `Phocoena phocoena` = "Phocoenidae",
                          `Physeter macrocephalus` = "Physeteridae",
-                         `Ziphius cavirostris` = "Ziphiidae"))
+                         `Ziphius cavirostris` = "Ziphiidae")) %>% 
+  # binomial is a factor ordered by species length with an abbreviated label
+  arrange(Length_m) %>% 
+  mutate(binomial = factor(Species, 
+                           levels = unique(Species),
+                           labels = abbr_binom(unique(Species))))
+binom_levels <- levels(morphologies$binomial)
+
 # Prey data
 prey_data <- read_csv("data/Cetacea model output BOUT_EXTANT_v2.csv") %>% 
-  mutate(binomial = paste(Genus, Species),
-         binomial = recode(binomial, 
-                           `Balaenoptera bonarensis` = "Balaenoptera bonaerensis", 
-                           `Physter macrocephalus` = "Physeter macrocephalus", 
-                           `Phocoaena Phocaena` = "Phocoena phocoena")) %>% 
+  select(-(X13:X25)) %>% 
+  mutate(Species = recode(Species,
+                          bonarensis = "bonaerensis",
+                          Phocaena = "phocoena"),
+         Genus = recode(Genus,
+                        Physter = "Physeter",
+                        Phocoaena = "Phocoena"),
+         binomial = factor(abbr_binom(paste(Genus, Species)),
+                           levels = binom_levels)) %>% 
   filter(`MR exponent` == 0.45)  # data duplicated for multiple MR exponent values
 
 # Rorqual feeding rates
 rorqual_data <- read_csv("data/lunge_rates_from_Paolo.csv") %>%
   filter(species != "be") %>% 
   mutate(duration_h = `deployment-time_secs` / 60 / 60,
-         binomial = recode(species,
-                           ba = "Balaenoptera bonaerensis",
-                           bp = "Balaenoptera physalus",
-                           bw = "Balaenoptera musculus",
-                           mn = "Megaptera novaeangliae"),
+         binomial = factor(recode(species,
+                                  ba = "B. bonaerensis",
+                                  bp = "B. physalus",
+                                  bw = "B. musculus",
+                                  mn = "M. novaeangliae"),
+                           levels = binom_levels),
          lunge_h = total_lunges / duration_h)
 
 # Odontocete feeding rates
 odontocete_data <- read_csv("data/foragestats_combined_ko2.csv") %>%
-  mutate(binomial = str_replace(Species, "_", " ")) %>% 
-  filter(taxa == "O") %>% 
-  separate(Species, into = c("Genus", "Species"), sep = "_")
-
-abbr_binom = function(binom) {
-  paste(str_sub(binom, 1, 1), 
-        str_extract(binom, " .*"), 
-        sep = ".")
-}
-binom_levels <- arrange(morphologies, Length_m)$Species
-binom_labels <- abbr_binom(binom_levels)
+  mutate(binomial = factor(abbr_binom(str_replace(Species, "_", " ")),
+                           levels = binom_levels)) %>% 
+  filter(taxa == "O")
 ```
 
 ## Abstract
@@ -96,9 +105,13 @@ The first term ($P_{in} \times t_d$) is the energy the animal would have consume
 
 The rate of consumption is the product of feeding rates and prey quality. We estimated feeding rates from tag data (lunges for rorquals, buzzes for odontocetes) and prey quality from active acoustics (rorquals) or stomach contents (odontocetes).
 
-### Empirical feeding rates
+$$P_{in} = r_f \times E_p$$
 
-Prey data from "Cetacea model output BOUT_EXTANT_v2.csv".
+Where r~f~ is the feeding rate and E~p~ is the energy from prey consumed per feeding event.
+
+### Empirical feeding rates ($r_f$)
+
+Feeding rates were empirically derived from tag data. Lunges for mysticetes (rorquals only) and buzzes for odontocetes.
 
 #### Mysticetes
 
@@ -117,10 +130,7 @@ kable(lungerate, "latex", booktabs = TRUE)
 ```{r}
 rorqual_data %>% 
   mutate(dur_cat = factor(ifelse(duration_h < 24, "< 1 day", "> 1 day"),
-                          levels = c("< 1 day", "> 1 day")),
-         binomial = factor(binomial, 
-                           levels = binom_levels, 
-                           labels =  abbr_binom(binom_labels))) %>% 
+                          levels = c("< 1 day", "> 1 day"))) %>% 
   ggplot(aes(binomial, lunge_h, fill = dur_cat)) +
   geom_boxplot() +
   geom_point(shape = 21,
@@ -149,24 +159,45 @@ odontocete_data %>%
 
 ```{r}
 odontocete_data %>% 
-  filter(binomial != "Phocoena phocoena") %>% 
-  left_join(select(morphologies, Species, Family, Length_m), 
-            by = c(binomial = "Species")) %>%
-  mutate(buzz_h = total_buzz_count / total_duration_h,
-         binomial = factor(binomial,
-                           levels = binom_levels,
-                           labels = binom_labels)) %>%
-  ggplot(aes(binomial, buzz_h, fill = Family)) +
+  filter(binomial != "P. phocoena") %>% 
+  left_join(select(morphologies, binomial, Family, Length_m), 
+            by = "binomial") %>%
+  mutate(buzz_h = total_buzz_count / total_duration_h) %>%
+  ggplot(aes(binomial, buzz_h, color = Family)) +
   geom_boxplot() +
   geom_point(shape = 21,
              position = position_jitter()) +
-  scale_fill_aaas() +
+  scale_color_aaas() +
   labs(y = "Buzzes per hour",
        caption = "P. phocoena not shown, mean buzz rate = 96.8/hr") +
   theme_classic(base_size = 8) +
   theme(axis.title.x = element_blank(),
         axis.text.x = element_text(hjust = 1,
-                                   angle = 45),
+                                   angle = 30),
         legend.title = element_blank(),
         legend.position = c(0.8, 0.85))
+```
+
+
+### Empirical prey energy ($E_p$)
+
+Prey energy was empirically derived from acoustic backscatter (mysticetes) and stomach samples (odontocetes). Filter feeders consume the most energy per feeding event. Delphinids target more energy-rich prey than Ziphids.
+
+```{r fig.width=5}
+prey_data %>% 
+  uncount(weights = Percent) %>% 
+  ggplot(aes(binomial, `Energy (kJ)`, color = Family)) +
+  geom_boxplot() +
+  scale_y_log10(name = "Energy per feeding event (kJ)",
+                labels = comma) +
+  scale_color_aaas() +
+  theme_classic(base_size = 8) +
+  guides(color = guide_legend(nrow = 2, byrow = TRUE)) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(hjust = 1,
+                                   angle = 30),
+        legend.position = c(.05, .75),
+        legend.justification = c(0, 0),
+        legend.title = element_blank(),
+        legend.direction = "horizontal")
 ```
