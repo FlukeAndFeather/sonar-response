@@ -1,12 +1,12 @@
 ---
-title: "Energetic Consequences of Sonar Exposure"
+title: "Energetic Consequences of SONAR Exposure"
 author: "Max Czapanskiy"
 output: pdf_document
 ---
 
 ```{r global_options, include=FALSE}
 knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE,
-                      fig.height = 3, fig.width = 4)
+                      fig.height = 3, fig.width = 5)
 ```
 
 ```{r setup}
@@ -17,12 +17,8 @@ library(kableExtra)
 library(lmodel2)
 library(ggsci)
 
-abbr_binom = function(binom) {
-  paste(str_sub(binom, 1, 1), 
-        str_extract(binom, " .*"), 
-        sep = ".")
-}
-
+# Load data
+# Morphological data
 morphologies <- read_csv("data/foragestats_combined_ko2.csv") %>% 
   mutate(Species = str_replace(Species, "_", " ")) %>% 
   group_by(Species) %>% 
@@ -30,121 +26,22 @@ morphologies <- read_csv("data/foragestats_combined_ko2.csv") %>%
             Mass_kg = first(Body_mass_kg)) %>% 
   mutate(Clade = ifelse(str_detect(Species, ".*ptera.*"),
                         "Mysticete",
-                        "Odontocete"))
-
-binom_levels <- arrange(morphologies, Length_m)$Species
-binom_labels <- abbr_binom(binom_levels)
-```
-
-What are the energetic consequences for cetaceans when exposed to sonar? The following model makes a first order approximation by estimating (1) the energy intake lost to foraging cessation and (2) the additional energy expenditure from increased swim speeds. We considered these two factors in four potential scenarios: 
-
-1. No response
-2. Cessation of foraging without flight
-3. Cessation of foraging with flight
-4. Extreme response
-
-The model will be paramterized using data and models from other sources (see table at the end of this document). Functional responses (e.g. displacement distance and duration) will come from the literature. The energy cost of lost feeding opportunities will be estimated with the scaling relationships in Jeremy's scaling paper. The energy cost of increased swim speeds during flight will be estimated using models from Williams et al. 2017. Thus:
-
-$$E_{sonar} = P_{in} \times t_d + P_{out} \times t_f$$
-
-Where E~sonar~ is the energy cost of sonar exposure, P~in~ is the rate of energy intake when foraging, t~d~ is the displacement time, P~out~ is the increase in energy expenditure from locomotion due to the flight response, and t~f~ is the flight time.
-
-# Functional responses
-
-*In progress*
-
-```{r fun_resp}
-
-```
-
-# Energetic parameters
-
-I'm estimating P~in~ as the product of energy acquired per feeding event (E~p~) and feeding rate (r~f~). Broadly speaking, energy acquired from prey scales sublinearly among odontocetes [E~p~=0.12M~c~^0.81^] but superlinearly among mysticetes [E~p~=5.83M~c~^2.37^]. *Note: Jeremy's paper has a negative coefficient for mysticete E~p~ scaling (v8.3:115) but I think that's a mistake. Also, what are the units of E~p~? kJ? Or is it scale invariant?*
-
-```{r Ep_scaling}
-# Vaquita to sperm whale
-odo_m_rng <- c(50, 41e3)
-# Minke to blue whale (eyeballed from Kahane-Rapport and Goldbogen 2018, Fig 2)
-mys_m_rng <- c(10^3.6, 10^5.25)
-
-Ep_fun <- function(m, clade) {
-  ifelse(clade == "Odontocete", 
-         0.12 * m ^ 0.81, 
-         5.83 * m ^ 2.37)
-}
-
-Ep_tbl <- tibble(M = c(odo_m_rng, mys_m_rng),
-                 Clade = factor(c(rep("Odontocete", 2), rep ("Mysticete", 2))),
-                 Ep = Ep_fun(M, Clade))
-
-png_to_grob <- function(path) {
-  png::readPNG(path) %>% 
-    grid::rasterGrob(interpolate = TRUE)
-}
-grob_to_ann <- function(grob, x, y) {
-  annotation_custom(grob, x / 5, x * 5, y / 5, y * 5)
-}
-silh_tbl <- tibble(sp_code = c("Pp", "Pm", "Ba", "Bm"),
-                   mass = c(70, 15000, 6700, 93000),
-                   y = c(10^3, 10^5, 10^11, 10^11.5),
-                   path = c("img/Phocoena-phocoena.png",
-                             "img/Physeter-macrocephalus.png",
-                             "img/Balaenoptera-acutorostrata.png",
-                             "img/Balaenoptera-musculus.png")) %>% 
-  mutate(grob = map(path, png_to_grob))
-Pp_grob <- png::readPNG("img/Phocoena-phocoena.png") %>% 
-  grid::rasterGrob(x = 0.1,
-                   y = 0.15,
-                   width = 0.13,
-                   height = 0.08,
-                   interpolate = TRUE)
-Pm_grob <- png::readPNG("img/Physeter-macrocephalus.png") %>% 
-  grid::rasterGrob(x = 0.72,
-                   y = 0.28,
-                   width = 0.2,
-                   height = 0.12,
-                   interpolate = TRUE)
-Bb_grob <- png::readPNG("img/Balaenoptera-acutorostrata.png") %>% 
-  grid::rasterGrob(x = 0.52,
-                   y = 0.55,
-                   width = 0.16,
-                   height = 0.1,
-                   interpolate = TRUE)
-Bm_grob <- png::readPNG("img/Balaenoptera-musculus.png") %>% 
-  grid::rasterGrob(x = 0.82,
-                   y = 0.87,
-                   width = 0.25,
-                   height = 0.15,
-                   interpolate = TRUE)
-
-ggplot(Ep_tbl, aes(M, Ep, color = Clade)) + 
-  geom_line(size = 1.5) +
-  annotation_custom(Pp_grob) +
-  annotation_custom(Pm_grob) +
-  annotation_custom(Bb_grob) +
-  annotation_custom(Bm_grob) +
-  scale_x_log10(name = "Mass (kg)",
-                labels = trans_format("log10", math_format(10 ^ .x)),
-                limits = c(50, 10^5.5)) +
-  scale_y_log10(name = "Energy from prey (kJ)",
-                labels = trans_format("log10", math_format(10 ^ .x)),
-                breaks = 10^seq(0, 15, by = 3),
-                limits = c(1, 10^15)) +
-  scale_color_aaas() +
-  theme_classic(base_size = 8) +
-  theme(legend.position = c(.2, .8))
-```
-
-## Empirical feeding rates
-
-Prey data from "Cetacea model output BOUT_EXTANT_v2.csv".
-
-```{r feeding_rates, results = "asis"}
-study_species <- c("Balaenoptera musculus",   # Blue whale
-                   "Berardius bairdii",       # Baird's beaked whale
-                   "Mesoplodon densirostris", # Blainville's beaked whale
-                   "Ziphius cavirostris")     # Cuvier's beaked whale
-# Model output v2 includes fixes to the Zc prey data
+                        "Odontocete"),
+         Family = recode(Species,
+                         `Balaenoptera bonaerensis` = "Balaenopteridae",
+                         `Balaenoptera musculus` = "Balaenopteridae",
+                         `Balaenoptera physalus` = "Balaenopteridae",
+                         `Berardius bairdii` = "Ziphiidae",
+                         `Globicephala macrorhynchus` = "Delphinidae",
+                         `Globicephala melas` = "Delphinidae",
+                         `Grampus griseus` = "Delphinidae",
+                         `Megaptera novaeangliae` = "Balaenopteridae",
+                         `Mesoplodon densirostris` = "Ziphiidae",
+                         `Orcinus orca` = "Delphinidae",
+                         `Phocoena phocoena` = "Phocoenidae",
+                         `Physeter macrocephalus` = "Physeteridae",
+                         `Ziphius cavirostris` = "Ziphiidae"))
+# Prey data
 prey_data <- read_csv("data/Cetacea model output BOUT_EXTANT_v2.csv") %>% 
   mutate(binomial = paste(Genus, Species),
          binomial = recode(binomial, 
@@ -152,11 +49,8 @@ prey_data <- read_csv("data/Cetacea model output BOUT_EXTANT_v2.csv") %>%
                            `Physter macrocephalus` = "Physeter macrocephalus", 
                            `Phocoaena Phocaena` = "Phocoena phocoena")) %>% 
   filter(`MR exponent` == 0.45)  # data duplicated for multiple MR exponent values
-```
 
-### Rorquals
-
-```{r bw_feeding_rate}
+# Rorqual feeding rates
 rorqual_data <- read_csv("data/lunge_rates_from_Paolo.csv") %>%
   filter(species != "be") %>% 
   mutate(duration_h = `deployment-time_secs` / 60 / 60,
@@ -167,13 +61,58 @@ rorqual_data <- read_csv("data/lunge_rates_from_Paolo.csv") %>%
                            mn = "Megaptera novaeangliae"),
          lunge_h = total_lunges / duration_h)
 
-lungerate <- rorqual_data %>% 
-  filter(duration_h >= 24) %>%
-  group_by(binomial) %>% 
-  summarize(lunge_rate = round(mean(lunge_h), digits = 1))
+# Odontocete feeding rates
+odontocete_data <- read_csv("data/foragestats_combined_ko2.csv") %>%
+  mutate(binomial = str_replace(Species, "_", " ")) %>% 
+  filter(taxa == "O") %>% 
+  separate(Species, into = c("Genus", "Species"), sep = "_")
+
+abbr_binom = function(binom) {
+  paste(str_sub(binom, 1, 1), 
+        str_extract(binom, " .*"), 
+        sep = ".")
+}
+binom_levels <- arrange(morphologies, Length_m)$Species
+binom_labels <- abbr_binom(binom_levels)
 ```
 
-How should lunge rate be calculated? Lunge rates from tags that lasted more than a day are lower because they capture night time. Should we use the mean lunge rate from <1 day tags because that's the opportunity cost? Or should we use the mean lunge rate from >1 day tags to be conservative? I'm going with the latter.
+## Abstract
+
+This is a tool intended for resource managers to understand some of the sub-lethal effects of SONAR on cetaceans. The model makes a first order approximation by estimating (1) the energy intake lost to foraging cessation and (2) the additional locomotor costs from increased swim speeds. Energetic parameters for the model come from empirical data and theoretical scaling relationships. 
+
+We present the model derivation and apply it to four case studies of typical behavioral responses. *SUMMARY OF RESULTS HERE*.
+
+## Energetic model
+
+The energetic consequences of SONAR exposure, as modeled here, take the form:
+
+$$E_{sonar} = P_{in} \times t_d + P_{out}(U_f) \times t_f$$
+
+Where E~sonar~ is the energy cost of sonar exposure, P~in~ is the rate of energy consumption during undisturbed foraging, t~d~ is the time displaced from foraging, P~out~ is the increased rate of locomotor costs during the flight response relative to undisturbed movement, U~f~ is the animal's speed during flight, and t~f~ is the flight time.
+
+The first term ($P_{in} \times t_d$) is the energy the animal would have consumed during foraging. The second term ($P_{out}(U_f) \times t_f$) is the additional energy spent in elevated locomotion.
+
+## Rate of consumption ($P_{in}$)
+
+The rate of consumption is the product of feeding rates and prey quality. We estimated feeding rates from tag data (lunges for rorquals, buzzes for odontocetes) and prey quality from active acoustics (rorquals) or stomach contents (odontocetes).
+
+### Empirical feeding rates
+
+Prey data from "Cetacea model output BOUT_EXTANT_v2.csv".
+
+#### Mysticetes
+
+The mysticete feeding rate is defined as the mean number of lunges per hour of deployment for deployments exceeding 24 hours. Shorter deployments tend to have higher lunge rates due to diel foraging patterns. Overall, lunge rates decrease with body size.
+
+```{r bw_feeding_rate, results="asis"}
+lungerate <- rorqual_data %>% 
+  filter(duration_h >= 24) %>%
+  group_by(Species = binomial) %>% 
+  summarize(N = n(),
+            `Lunge rate` = round(mean(lunge_h), digits = 1))
+
+kable(lungerate, "latex", booktabs = TRUE)
+```
 
 ```{r}
 rorqual_data %>% 
@@ -194,239 +133,40 @@ rorqual_data %>%
         legend.position = c(0.7, 0.7))
 ```
 
-### Beaked whales
-```{r beaked_feeding_rates}
-odontocete_data <- read_csv("data/foragestats_combined_ko2.csv") %>%
-  mutate(binomial = str_replace(Species, "_", " ")) %>% 
-  filter(taxa == "O") %>% 
-  separate(Species, into = c("Genus", "Species"), sep = "_")
-```
+#### Odontocetes
 
-We have limited beaked whale data. Mean hourly feeding rates are 4.6 for *Berardius* (but N = 1) and ~13 for *Mesoplodon* and *Ziphius*.
+Odontocetes forage with echolocation so feeding events are identifiable by an acoustic signature. Feeding rates are estimated as buzzes per hour. The tagging durations on odontocetes were not as long as mysticetes, so I used all available data. The relationship between feeding rates and body size is more variable than for mysticetes. This makes sense given the wider range of prey and dive depths for odontocetes.
 
 ```{r, results = "asis"}
 odontocete_data %>%  
   group_by(Species = binomial) %>% 
   summarize(N = n(),
             `Buzz rate (per hour)` = (total_buzz_count / total_duration_h) %>% 
-              mean %>% 
+              mean(na.rm = TRUE) %>% 
               round(digits = 1)) %>% 
   kable("latex", booktabs = TRUE)
 ```
 
-## Empirical prey size distributions
-
-Blue whales engulf several orders of magnitude more energy per feeding event than beaked whales (no surprise there).
-
-```{r fig.width=5}
-prey_data %>%
-  filter(binomial %in% study_species) %>% 
-  mutate(binomial = str_replace(binomial, " ", "\n")) %>% 
-  uncount(weights = Percent) %>% 
-  ggplot(aes(binomial, `Energy (kJ)`)) +
+```{r}
+odontocete_data %>% 
+  filter(binomial != "Phocoena phocoena") %>% 
+  left_join(select(morphologies, Species, Family, Length_m), 
+            by = c(binomial = "Species")) %>%
+  mutate(buzz_h = total_buzz_count / total_duration_h,
+         binomial = factor(binomial,
+                           levels = binom_levels,
+                           labels = binom_labels)) %>%
+  ggplot(aes(binomial, buzz_h, fill = Family)) +
   geom_boxplot() +
-  scale_y_log10(name = "Energy (kJ)",
-                labels = comma) +
-  theme_classic(base_size = 8) +
-  theme(axis.title.x = element_blank())
-```
-
-## Power in
-
-$$P_{in} = E_{p} \times r_{f}$$
-
-Where P~in~ is the rate of energy intake (kJ/hour), E~p~ is the energy from in one feeding event (kJ), and r~f~ is the feeding rate (feeding events/hour). The following figure shows estimates of P~in~. *Note: there's a Pm with NA for buzz count.* 
-
-```{r fig.width=4.5}
-Ep_tbl <- prey_data %>%
-  uncount(weights = Percent) %>% 
-  group_by(binomial) %>% 
-  summarize(Ep_kJ = mean(`Energy (kJ)`))
-
-rf_tbl <- rorqual_data %>% 
-  filter(duration_h >= 24) %>%
-  group_by(binomial) %>% 
-  summarize(rf_h = round(mean(lunge_h), 1)) %>%
-  rbind(odontocete_data %>%  
-          group_by(binomial) %>% 
-          summarize(rf_h = round(mean(total_buzz_count / total_duration_h, na.rm = TRUE), 1)))
-
-Pin_tbl <- inner_join(Ep_tbl, rf_tbl, by = "binomial") %>% 
-  mutate(Pin_kJ_h = Ep_kJ * rf_h) %>% 
-  left_join(select(morphologies, Species, Clade), by = c(binomial = "Species"))
-
-Pin_tbl %>% 
-  mutate(binomial = factor(binomial, 
-                           levels = binom_levels, 
-                           labels = binom_labels)) %>% 
-  ggplot(aes(x = binomial, fill = Clade)) +
-  geom_col(aes(y = Pin_kJ_h)) +
-  scale_y_log10(name = "Energy (kJ)",
-                labels = comma) +
+  geom_point(shape = 21,
+             position = position_jitter()) +
   scale_fill_aaas() +
+  labs(y = "Buzzes per hour",
+       caption = "P. phocoena not shown, mean buzz rate = 96.8/hr") +
   theme_classic(base_size = 8) +
   theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 45, hjust = 1))
-```
-
-## Power out
-
-$$P_{out} = (f_{max} - f_{pref}) \times m \times C_L$$
-
-Where *f~max~* is the fluking frequency at maximum speed , *f~pref~* is the fluking frequency at the preferred cruising speed, *m* is the mass of the animal, *C~L~* is the mass-specific cost of locomotion. Williams et al. 2017 calculated *C~L~* for cruising speeds:
-
-$$C_L = 1.46 + 0.0005m$$
-(see equations 6)
-
-### Fluking frequencies
-
-1. Cruising speed (U~pref~) is 1.5 m/s (Sato et al. 2007)
-2. Max speed (U~max~) from Hirt et al. 2017
-$$U_{max} = aM^b(1-e^{-hM^i})$$
-  + For swimming, a = 11.2, b = 0.36, h = 19.5, i = -0.56
-3. Fluking frequency based on a fixed Strouhal number of 0.3
-$$S_t = \frac{f}{U} A$$
-A is about $\frac{L}{5}$
-$$S_t = \frac{f}{U} \frac{L}{5}$$
-$$f = 5S_t\frac{U}{L}$$
-$$f = 1.5\frac{U}{L}$$
-
-Given the equations for $P_{out}$, $f$, and $C_L$, the estimates for power expended from increased fluking are:
-
-```{r, results="asis"}
-# Williams et al. 2017
-CL_fun <- function(m) 1.46 + 0.0005 * m
-# Hirt et al. 2017
-Umax_fun <- function(m) {
-  u_kph <- 11.2 * m ^ 0.36 * (1 - exp(-19.5 * m ^ -0.56))
-  u_ms <- u_kph * 1000 / 3600
-  u_ms
-} 
-# Sato et al. 2007
-f_pref_fun <- function(m) 3.56 * m ^ -0.29
-U_pref_ms <- 1.5 #m/s
-# Based on a fixed Strouhal number of 0.3
-f_fun <- function(u, l) 1.5 * u / l
-
-# As defined here
-Pout_fun <- function(m, l) {
-  U_max <- Umax_fun(m)
-  f_max <- f_fun(U_max, l)
-  f_pref <- f_fun(U_pref_ms, l)
-  (f_max - f_pref) * m * CL_fun(m)
-}
-
-Pout_tbl <- morphologies %>% 
-  mutate(U_max_ms = Umax_fun(Mass_kg),
-         f_max_hz = f_fun(U_max_ms, Length_m),
-         f_pref1_hz = f_fun(U_pref_ms, Length_m),
-         f_pref2_hz = f_pref_fun(Mass_kg),
-         CL_jkg = CL_fun(Mass_kg),
-         Pout_W = Pout_fun(Mass_kg, Length_m))
-
-Pout_tbl %>% 
-  mutate(Species = paste(str_sub(Species, 1, 1), 
-                         str_extract(Species, " .*"))) %>% 
-  rename(`Mass (kg)` = Mass_kg,
-         `Length (m)` = Length_m,
-         `$U_{max} (m/s)$` = U_max_ms,
-         `$f_{max} (Hz)$` = f_max_hz,
-         `$f_{pref1} (Hz)$` = f_pref1_hz,
-         `$f_{pref2} (Hz)$` = f_pref2_hz,
-         `$C_L$` = CL_jkg,
-         `$P_{out} (W)$` = Pout_W) %>% 
-  kable("latex", booktabs = TRUE, escape = FALSE,
-        digits = c(0, 1, 0, 1, 2, 2, 2, 1, 0)) %>% 
-  footnote(c("$C_L$ is in units of $J kg^{-1} stroke^{-1}$",
-             "$f_{pref1}$ calculated using a Strouhal number of 0.3 at a cruising speed of 1.5 m/s",
-             "$f_{pref2}$ calculated with the scaling relationship in Sato et al. 2007",
-             "$P_{out}$ calculated with $f_{pref1}$"),
-           escape = FALSE)
-```
-
-```{r}
-Pout_tbl %>% 
-  mutate(binomial = factor(Species, 
-                           levels = binom_levels, 
-                           labels = binom_labels)) %>% 
-  ggplot(aes(x = binomial, fill = Clade)) +
-  geom_col(aes(y = Pout_W)) +
-  scale_y_log10(name = "Energy (W)",
-                labels = comma) +
-  scale_fill_aaas() +
-  theme_classic(base_size = 8) +
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(angle = 45, hjust = 1))
-```
-
-Mass-specific locomotor costs get huge for big animals! Going all the way to max speed is too much. Model it for 10%, 25%, 50% increases in speed? Or 10%, 25%, 50% to max speed?
-
-# Modeled E~sonar~
-
-TODO: finish functional response section and get good estimates for *t~d~* and *t~f~*. For now, let's say cetaceans are displaced for 4 hours and flee for 30 minutes. This figure isn't terribly meaningful, it's mostly to show the calculations work.
-
-```{r}
-E_sonar_tbl <- Pin_tbl %>% 
-  inner_join(Pout_tbl, by = c(binomial = "Species", "Clade")) %>% 
-  mutate(t_d_min = 4 * 60,
-         t_f_min = 30,
-         # The units are a little wonky. Intake is in units of kJ/hour and output
-         # is in J/s (W).
-         E_in_kJ = Pin_kJ_h * t_d_min / 60,
-         E_out_kJ = Pout_W / 1000 * t_f_min * 60,
-         E_sonar_kJ = E_in_kJ + E_out_kJ)
-
-# E_sonar as fraction of daily BMR
-BMR_tbl <- E_sonar_tbl %>% 
-  mutate(binomial = factor(binomial, 
-                           levels = binom_levels, 
-                           labels = binom_labels),
-         BMR_kcal_day = 70 * Mass_kg ^ 0.75,
-         BMR_kJ_day = BMR_kcal_day * 4.184,
-         BMR_y = (E_in_kJ + E_out_kJ) * 1,
-         BMR_pct = (E_in_kJ + E_out_kJ) / BMR_kJ_day,
-         BMR_lbl = percent(BMR_pct))
-
-E_sonar_tbl %>% 
-  mutate(binomial = factor(binomial, 
-                           levels = binom_levels, 
-                           labels = binom_labels)) %>% 
-  gather(E, val, E_in_kJ, E_out_kJ) %>% 
-  mutate(E = recode(E, 
-                    E_in_kJ = "Lost resources",
-                    E_out_kJ = "Stroking costs")) %>%
-  ggplot(aes(binomial, val, fill = E)) +
-  geom_col() +
-  scale_y_log10(breaks = 10 ^ seq(2, 14, by = 3),
-                labels = trans_format("log10", math_format(10^.x))) +
-  scale_fill_aaas() +
-  labs(y = "Energy cost (kJ)") +
-  theme_classic(base_size = 8) +
-  theme(legend.title = element_blank(),
-        legend.position = c(0.25, 0.8),
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        axis.title.x = element_blank())
-
-BMR_tbl %>% 
-  ggplot(aes(binomial, BMR_pct, fill = Clade)) +
-  geom_col() +
-  scale_y_continuous(labels = percent) +
-  scale_fill_aaas() +
-  labs(y = "Fraction of daily BMR") +
-  theme_classic(base_size = 8) +
-  theme(legend.title = element_blank(),
-        legend.position = c(0.25, 0.8),
-        axis.text.x = element_text(angle = 45, hjust = 1),
-        axis.title.x = element_blank())
-```
-
-# Literature
-```{r lit, results = "asis"}
-refs <- tibble(Reference = c("Tyack et al. 2011", "DeRuiter et al. 2017", "DeRuiter et al. 2013", "Friedlaender et al. 2016", "Goldbogen et al. 2013", "Kvadsheim et al. 2017", "Southall et al. 2019"),
-               Species = c("Mesoplodon densirostris", "Balaenoptera musculus", "Ziphius cavirostris", "Balaenoptera musculus", "Balaenoptera musculus", "Balaenoptera acutorostrata", "Ziphius cavirostris"),
-               Tags = c(1, 37, 2, 9, 17, 4, 0),
-               Notes = c("Only 1 tag, but other data from sonar array", "How did the transition probability from deep feeding to other states change in CEEs?", "Reduced time foraging in response to proximal sonar, but not distant", "Includes prey data", "Basis for Friedlaender et al. 2016 and DeRuiter et al. 2017", "SoCal + Norway. 1 CEE + 1 control in each location", "Prey distribution in SoCal sonar array"))
-
-kable(refs, "latex", booktabs = TRUE) %>% 
-  column_spec(4, width = "18em")
+        axis.text.x = element_text(hjust = 1,
+                                   angle = 45),
+        legend.title = element_blank(),
+        legend.position = c(0.8, 0.85))
 ```
