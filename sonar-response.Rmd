@@ -83,6 +83,9 @@ odontocete_data <- read_csv("data/foragestats_combined_ko2.csv") %>%
   mutate(binomial = factor(abbr_binom(str_replace(Species, "_", " ")),
                            levels = binom_levels)) %>% 
   filter(taxa == "O")
+
+# Labels for logarithmic scales
+log_labels <- trans_format("log10", math_format(10^.x))
 ```
 
 ## Abstract
@@ -136,6 +139,7 @@ rorqual_data %>%
   geom_point(shape = 21,
              position = position_jitterdodge()) +
   scale_fill_aaas() +
+  expand_limits(y = 1) +
   labs(y = "Lunges per hour") +
   theme_classic(base_size = 8) +
   theme(axis.title.x = element_blank(),
@@ -146,6 +150,8 @@ rorqual_data %>%
 #### Odontocetes
 
 Odontocetes forage with echolocation so feeding events are identifiable by an acoustic signature. Feeding rates are estimated as buzzes per hour. The tagging durations on odontocetes were not as long as mysticetes, so I used all available data. The relationship between feeding rates and body size is more variable than for mysticetes. This makes sense given the wider range of prey and dive depths for odontocetes.
+
+*Note: there's a Pm with NA for buzz count.* 
 
 ```{r, results = "asis"}
 odontocete_data %>%  
@@ -168,6 +174,7 @@ odontocete_data %>%
   geom_point(shape = 21,
              position = position_jitter()) +
   scale_color_aaas() +
+  expand_limits(y = 1) +
   labs(y = "Buzzes per hour",
        caption = "P. phocoena not shown, mean buzz rate = 96.8/hr") +
   theme_classic(base_size = 8) +
@@ -189,10 +196,80 @@ prey_data %>%
   ggplot(aes(binomial, `Energy (kJ)`, color = Family)) +
   geom_boxplot() +
   scale_y_log10(name = "Energy per feeding event (kJ)",
-                labels = comma) +
+                labels = log_labels) +
   scale_color_aaas() +
+  expand_limits(y = 1) +
   theme_classic(base_size = 8) +
   guides(color = guide_legend(nrow = 2, byrow = TRUE)) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(hjust = 1,
+                                   angle = 30),
+        legend.position = c(.05, .75),
+        legend.justification = c(0, 0),
+        legend.title = element_blank(),
+        legend.direction = "horizontal")
+```
+
+### Modeled $P_{in}$
+
+From before:
+
+$$P_{in} = r_f \times E_p$$
+
+Based on empirical feeding rates and prey energy density, the rate of energy consumption covers four orders of magnitude: from 2.4e3 kJ/hr (P. phocoena) to 1.4e7 kJ/hr (B. musculus).
+
+```{r}
+Ep_tbl <- prey_data %>%
+  uncount(weights = Percent) %>% 
+  group_by(binomial) %>% 
+  summarize(Ep_kJ = mean(`Energy (kJ)`))
+
+rf_tbl <- rorqual_data %>% 
+  filter(duration_h >= 24) %>%
+  group_by(binomial) %>% 
+  summarize(rf_h = round(mean(lunge_h), 1)) %>%
+  rbind(odontocete_data %>%  
+          group_by(binomial) %>% 
+          summarize(rf_h = round(mean(total_buzz_count / total_duration_h, na.rm = TRUE), 1)))
+
+Pin_tbl <- inner_join(Ep_tbl, rf_tbl, by = "binomial") %>% 
+  mutate(Pin_kJ_h = Ep_kJ * rf_h) %>% 
+  left_join(select(morphologies, binomial, Family))
+
+Pin_tbl %>% 
+  ggplot(aes(binomial, Pin_kJ_h, fill = Family)) +
+  geom_col() +
+  scale_y_log10(name = expression(P[`in`] ~~ (kJ/h)),
+                labels = log_labels) +
+  scale_fill_aaas() +
+  expand_limits(y = 1) +
+  theme_classic(base_size = 8) +
+  guides(fill = guide_legend(nrow = 2, byrow = TRUE)) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(hjust = 1,
+                                   angle = 30),
+        legend.position = c(.05, .75),
+        legend.justification = c(0, 0),
+        legend.title = element_blank(),
+        legend.direction = "horizontal")
+```
+
+The ratio of P~in~ to basal metabolic rate (BMR, estimated with Kleiber's equation) puts the consumption rates of mysticetes into perspective. Odontocetes consume energy at roughly 10-100 times BMR. The larger mysticetes, however, are closer to 1000 times BMR. This probably reflects both the high costs of lunge feeding as well as the demands of a capital breeding strategy.
+
+```{r}
+Pin_tbl %>% 
+  left_join(select(morphologies, binomial, Mass_kg), by = "binomial") %>% 
+  mutate(BMR_kcal_day = 70 * Mass_kg ^ 0.75,
+         BMR_kJ_day = BMR_kcal_day * 4.184,
+         BMR_kJ_h = BMR_kcal_day / 24,
+         ratio = Pin_kJ_h / BMR_kJ_h) %>% 
+  ggplot(aes(binomial, ratio, fill = Family)) +
+  geom_col() +
+  scale_y_log10(labels = function(l) paste(comma(l), ":1", sep = "")) +
+  scale_fill_aaas() +
+  labs(y = expression(P[`in`]:BMR)) +
+  theme_classic(base_size = 8) +
+  guides(fill = guide_legend(nrow = 2, byrow = TRUE)) +
   theme(axis.title.x = element_blank(),
         axis.text.x = element_text(hjust = 1,
                                    angle = 30),
