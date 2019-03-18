@@ -2,6 +2,9 @@
 title: "Energetic Consequences of SONAR Exposure"
 author: "Max Czapanskiy"
 output: pdf_document
+bibliography: bibliography.bib
+nocite: | 
+  @deruiter_first_2013, @kvadsheim_avoidance_2017, @southall_behavioral_2019
 ---
 
 ```{r global_options, include=FALSE}
@@ -90,9 +93,9 @@ log_labels <- trans_format("log10", math_format(10^.x))
 
 ## Abstract
 
-This is a tool intended for resource managers to understand some of the sub-lethal effects of SONAR on cetaceans. The model makes a first order approximation by estimating (1) the energy intake lost to foraging cessation and (2) the additional locomotor costs from increased swim speeds. Energetic parameters for the model come from empirical data and theoretical scaling relationships. 
+This is a tool intended for resource managers to understand the energetic sub-lethal effects of SONAR exposure on cetaceans. The model makes a first order approximation by estimating (1) the energy intake lost to foraging cessation and (2) the additional locomotor costs from increased swim speeds. Energetic parameters for the model come from empirical data and theoretical scaling relationships. 
 
-We present the model derivation and apply it to four case studies of typical behavioral responses. *SUMMARY OF RESULTS HERE*.
+Here I present the model derivation and apply it to four case studies of hypothetical behavioral responses. The results indicate even minor behavioral responses from filter feeders can have immense energetic costs, several times greater than daily basal metabolic requirements. Conversely, strong responses from raptorial feeders cost only a fraction of basal metabolic requirements. So although raptorial feeders (especially beaked whales) are the majority of mass strandings associated with SONAR (ref?), sub-lethal effects of energy loss probably have a greater impact on rorquals.
 
 ## Energetic model
 
@@ -100,7 +103,7 @@ The energetic consequences of SONAR exposure, as modeled here, take the form:
 
 $$E_{sonar} = P_{in} \times t_d + P_{out}(U_f) \times t_f$$
 
-Where E~sonar~ is the energy cost of sonar exposure, P~in~ is the rate of energy consumption during undisturbed foraging, t~d~ is the time displaced from foraging, P~out~ is the increased rate of locomotor costs during the flight response relative to undisturbed movement, U~f~ is the animal's speed during flight, and t~f~ is the flight time.
+Where E~sonar~ is the energy cost of sonar exposure, P~in~ is consumption power (i.e. rate of energy intake) during undisturbed foraging, t~d~ is the time displaced from foraging, P~out~ is flight power (i.e. increased rate of locomotor costs), U~f~ is the animal's speed during flight, and t~f~ is the flight time.
 
 The first term ($P_{in} \times t_d$) is the energy the animal would have consumed during foraging. The second term ($P_{out}(U_f) \times t_f$) is the additional energy spent in elevated locomotion.
 
@@ -114,7 +117,7 @@ Where r~f~ is the feeding rate and E~p~ is the energy from prey consumed per fee
 
 ### Empirical feeding rates ($r_f$)
 
-Feeding rates were empirically derived from tag data. Lunges for mysticetes (rorquals only) and buzzes for odontocetes.
+Feeding rates were empirically derived from tag data. Lunges for rorquals and buzzes for odontocetes.
 
 #### Mysticetes
 
@@ -134,11 +137,11 @@ kable(lungerate, "latex", booktabs = TRUE)
 rorqual_data %>% 
   mutate(dur_cat = factor(ifelse(duration_h < 24, "< 1 day", "> 1 day"),
                           levels = c("< 1 day", "> 1 day"))) %>% 
-  ggplot(aes(binomial, lunge_h, fill = dur_cat)) +
+  ggplot(aes(binomial, lunge_h, color = dur_cat)) +
   geom_boxplot() +
   geom_point(shape = 21,
              position = position_jitterdodge()) +
-  scale_fill_aaas() +
+  scale_color_aaas() +
   expand_limits(y = 1) +
   labs(y = "Lunges per hour") +
   theme_classic(base_size = 8) +
@@ -149,7 +152,7 @@ rorqual_data %>%
 
 #### Odontocetes
 
-Odontocetes forage with echolocation so feeding events are identifiable by an acoustic signature. Feeding rates are estimated as buzzes per hour. The tagging durations on odontocetes were not as long as mysticetes, so I used all available data. The relationship between feeding rates and body size is more variable than for mysticetes. This makes sense given the wider range of prey and dive depths for odontocetes.
+Odontocete feeding events are identifiable by the acoustic signature of echolocation (buzzes). Feeding rates are estimated as buzzes per hour. Tagging durations on odontocetes rarely exceed 24 hours, so I used all available data. The relationship between feeding rates and body size is more variable than for mysticetes. This makes sense given the wider range of prey and dive depths for odontocetes.
 
 *Note: there's a Pm with NA for buzz count.* 
 
@@ -184,7 +187,6 @@ odontocete_data %>%
         legend.title = element_blank(),
         legend.position = c(0.8, 0.85))
 ```
-
 
 ### Empirical prey energy ($E_p$)
 
@@ -254,14 +256,13 @@ Pin_tbl %>%
         legend.direction = "horizontal")
 ```
 
-The ratio of P~in~ to basal metabolic rate (BMR, estimated with Kleiber's equation) puts the consumption rates of mysticetes into perspective. Odontocetes consume energy at roughly 10-100 times BMR. The larger mysticetes, however, are closer to 1000 times BMR. This probably reflects both the high costs of lunge feeding as well as the demands of a capital breeding strategy.
+The ratio of P~in~ to basal metabolic rate (BMR, estimated in kJ/day with Kleiber's equation $BMR = 293.1 \times m ^ {0.75}$ [@kleiber_fire_1975]) puts the consumption rates of mysticetes into perspective. Odontocetes consume energy at roughly 10-100 times BMR. The larger mysticetes, however, are closer to 1000 times BMR. This probably reflects both the high costs of lunge feeding as well as the demands of a capital breeding strategy.
 
 ```{r}
 Pin_tbl %>% 
   left_join(select(morphologies, binomial, Mass_kg), by = "binomial") %>% 
-  mutate(BMR_kcal_day = 70 * Mass_kg ^ 0.75,
-         BMR_kJ_day = BMR_kcal_day * 4.184,
-         BMR_kJ_h = BMR_kcal_day / 24,
+  mutate(BMR_kJ_day = 293.1 * Mass_kg ^ 0.75,
+         BMR_kJ_h = BMR_kJ_day / 24,
          ratio = Pin_kJ_h / BMR_kJ_h) %>% 
   ggplot(aes(binomial, ratio, fill = Family)) +
   geom_col() +
@@ -285,21 +286,21 @@ The rate of energy expenditure during the flight response (flight power) is a fu
 
 $$P_{out}(U_f) = (f_s(U_f) - f_s(U_b)) \times C_L \times m$$
 
-Where f~s~ is a function relating stroke frequency to swimming speed, U~f~ and U~b~ are the animal's speed during the flight response and the basal, undisturbed state, C~L~ is the mass-specific locomotor cost of fluking (Williams et al. 2017), and m is the animal's mass.
+Where f~s~ is a function relating stroke frequency to swimming speed, U~f~ and U~b~ are the animal's speed during the flight response and the basal, undisturbed state, C~L~ is the mass-specific locomotor cost of a stroke [@williams_swimming_2017], and m is the animal's mass.
 
 ### Fluking frequencies (f~f~)
 
-Animals can swim efficiently by maintaining a Strouhal number of approximately 0.3 (Rohr & Fish 2004). The Strouhal number is a dimensionless ratio of the form:
+Animals can swim efficiently by maintaining a Strouhal number of approximately 0.3 [@rohr_strouhal_2004]. The Strouhal number is a dimensionless ratio of the form:
 
 $$S_t = \frac{f}{U}A$$
 
-Where $A$ is the stroke amplitude. Cetacean stroke amplitudes are typically one fifth body length (reference?), so by fixing $S_t$ at 0.3 I can estimate stroking frequencies for a given speed as:
+Where $A$ is the stroke amplitude. Cetacean stroke amplitudes are typically one fifth body length (ref?), so by fixing $S_t$ at 0.3 I estimate stroking frequencies for a given speed as:
 
 $$f = \frac{1.5U}{L}$$
 
 Where $L$ is the length of the animal.
 
-The cruising speed of swimming animals is invariant with size (Sato et al. 2007), about 1.5 m/s. The predicted stroking frequencies for cetaceans in this study at cruising speed are:
+The cruising speed of swimming animals is invariant with size [@sato_katsufumi_stroke_2007], about 1.5 m/s. The predicted stroking frequencies for cetaceans in this study at cruising speed are:
 
 ```{r}
 fs_fun <- function(U, L) 1.5 * U / L
@@ -319,13 +320,15 @@ morphologies %>%
 
 ### Locomotor cost ($C_L$)
 
-Williams et al. 2017 calculated *C~L~* for cruising speeds as:
+[@williams_swimming_2017] calculated *C~L~* for cruising speeds as:
 
 $$C_L = 1.46 + 0.0005m$$
 
-![alt text](img/Williams_etal_2017_fig6.png "Williams et al. 2017 locomotor costs")
+```{r, out.width = "300px"}
+knitr::include_graphics("img/Williams_etal_2017_fig6.png")
+```
 
-The grey line in this figure (reproduced from Williams et al. 2017) is C~L~ at cruising speeds and the red line is at maximum aerobic output. I extrapolated the grey line to estimate C~L~ for all cetaceans, which I recognize is dodgy but it's the best available data.
+The grey line in this figure (reproduced from [@williams_swimming_2017]) is C~L~ at cruising speeds and the red line is at maximum aerobic output. I extrapolated the grey line to estimate C~L~ for all cetaceans, which I recognize is dodgy but it's the best available data.
 
 ```{r}
 CL_fun <- function(m) 1.46 + 0.0005 * m
@@ -333,7 +336,7 @@ CL_fun <- function(m) 1.46 + 0.0005 * m
 
 ### Modeled $P_{out}$
 
-I present two case studies for the increased locomotor costs of the flight response. *Z. cavirostris and B. musculus? Do I need to use tag data? Can I get $U_f$ from the literature?*
+TODO: present two case studies for the increased locomotor costs of the flight response. *Z. cavirostris and B. musculus? Do I need to use tag data? Can I get $U_f$ from the literature?*
 
 ```{r}
 Pout_fun <- function(u, l, m) {
@@ -345,7 +348,27 @@ Pout_fun <- function(u, l, m) {
 
 # Total energetic cost ($E_{sonar}$)
 
-TODO: finish functional response section and get good estimates for $t_d$, $U_f$ and $t_f$. Present *x* case studies. *Which species do we have good data for?* For now, I'm trying the following:
+In summary, the energetic cost model combines lost consumption and additional stroking costs:
+
+$$E_{sonar} = P_{in} \times t_d + P_{out}(U_f) \times t_f$$
+
+I derived $P_{in}$ using empirical feeding rates and prey quality:
+
+$$P_{in} = r_f \times E_p$$
+
+The equation for $P_{out}$ is based on (1) a general theoretical relationship between stroke rates and swim speeds and (2) an empirically derived scaling relationship between body size and per-stroke costs.
+
+$$P_{out}(U_f) = (f_s(U_f) - f_s(U_b)) \times C_L \times m$$
+
+Where $U_b$ is fixed at 1.5 m/s. The relationship between stroke frequency and speed is:
+
+$$f = \frac{1.5U}{L}$$
+
+Combining these equations, the full model takes the form:
+
+$$E_{sonar} = r_f \times E_p \times t_d + (\frac{1.5(U_f-1.5)}{L}) \times C_L \times m \times t_f$$
+
+TODO: Present 4 (?) case studies. Get good estimates for $t_d$, $U_f$ and $t_f$.  *Which species do we have good data for?* For now, given these hypothetical functional responses:
 
 ```{r, results="asis"}
 response_tbl <- tibble(binomial = factor(c("M. densirostris",
@@ -378,6 +401,8 @@ response_tbl %>%
   kable("latex", booktabs = TRUE, escape = FALSE)
 ```
 
+I predict these energetic costs:
+
 ```{r, results="asis"}
 ratio_lbl <- function(x) {
   x <- signif(x, 3)
@@ -406,15 +431,18 @@ E_sonar_tbl <- response_tbl %>%
   mutate(E_in_kJ = Pin_kJ_h * t_d_min / 60,
          E_out_kJ = Pout_W / 1000 * t_f_min * 60,
          E_sonar_kJ = E_in_kJ + E_out_kJ,
-         BMR_kcal_day = 70 * Mass_kg ^ 0.75,
-         BMR_kJ_day = BMR_kcal_day * 4.184,
+         BMR_kJ_day = 293.1 * Mass_kg ^ 0.75,
          E_BMR = E_sonar_kJ / BMR_kJ_day)
 
 E_sonar_tbl %>% 
   transmute(Species = binomial,
-            `$E_{out} \\text{ (kJ)}$` = signif(E_out_kJ, 3),
-            `$E_{in} \\text{ (kJ)}$` = signif(E_in_kJ, 3),
-            `$E_{sonar} \\text{ (kJ)}$` = signif(E_sonar_kJ, 3),
-            `$E_{sonar}:\\text{ BMR}$` = ratio_lbl(E_BMR)) %>% 
+            `$E_{out} \\text{(kJ)}$` = signif(E_out_kJ, 3),
+            `$E_{in} \\text{(kJ)}$` = signif(E_in_kJ, 3),
+            `$E_{sonar} \\text{(kJ)}$` = signif(E_sonar_kJ, 3),
+            `$E_{sonar}:BMR_d$` = ratio_lbl(E_BMR)) %>% 
   kable("latex", booktabs = TRUE, escape = FALSE)
 ```
+
+In these examples, blue whales react weakly to sonar ($t_f=5~min, t_d=1~hr, U_f=2.5~m/s$) but the cost is still over 9x daily BMR. Conversely, a much stronger reaction from Ziphids ($t_f=30~min, t_d=6~hr, U_f=4.5~m/s$) only costs about half daily BMR. When considering the sub-lethal effects of SONAR, this model suggests filter feeders are a greater conservation concern than raptorial feeders, even though the latter are the majority in mass stranding events.
+
+# Bibliography
