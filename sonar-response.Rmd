@@ -256,7 +256,7 @@ Pin_tbl %>%
         legend.direction = "horizontal")
 ```
 
-The ratio of P~in~ to basal metabolic rate (BMR, estimated in kJ/day with Kleiber's equation $BMR = 293.1 \times m ^ {0.75}$ [@kleiber_fire_1975]) puts the consumption rates of mysticetes into perspective. Odontocetes consume energy at roughly 10-100 times BMR. The larger mysticetes, however, are closer to 1000 times BMR. This probably reflects both the high costs of lunge feeding as well as the demands of a capital breeding strategy.
+The ratio of P~in~ to basal metabolic rate (BMR, estimated in kJ/day with Kleiber's equation $BMR = 293.1 \times m ^ {0.75}$ [@kleiber_fire_1975]) puts the consumption rates of mysticetes into perspective. Odontocetes consume energy up to approximately 10 times BMR. The larger mysticetes, however, exceed 100 times BMR. This probably reflects both the high costs of lunge feeding as well as the demands of a capital breeding strategy.
 
 ```{r}
 Pin_tbl %>% 
@@ -336,7 +336,7 @@ CL_fun <- function(m) 1.46 + 0.0005 * m
 
 ### Modeled $P_{out}$
 
-TODO: present two case studies for the increased locomotor costs of the flight response. *Z. cavirostris and B. musculus? Do I need to use tag data? Can I get $U_f$ from the literature?*
+Across body sizes, $P_{out}$ increases steeply with flight speed until an inflection point at approximately 1.8 m/s, then increases with a shallow slope.
 
 ```{r}
 Pout_fun <- function(u, l, m) {
@@ -344,6 +344,23 @@ Pout_fun <- function(u, l, m) {
   f_b <- fs_fun(U_b_ms, l)
   (f_f - f_b) * CL_fun(m) * m
 }
+
+crossing(binomial = c("Z. cavirostris",
+                      "B. musculus"),
+         speed = seq(1.51, 5, length.out = 100)) %>% 
+  left_join(morphologies, by = "binomial") %>%
+  mutate(P_out = Pout_fun(speed, Length_m, Mass_kg)) %>% 
+  ggplot(aes(x = speed, y = P_out, color = binomial)) +
+  scale_y_log10(labels = log_labels) +
+  geom_line() +
+  scale_color_aaas() +
+  labs(x = "Flight speed (m/s)",
+       y = expression(P[out] * " (kJ/hr)")) +
+  theme_classic(base_size = 8) +
+  theme(legend.position = c(0.5, .1),
+        legend.justification = c(0.5, 0),
+        legend.title = element_blank(),
+        legend.direction = "horizontal")
 ```
 
 # Total energetic cost ($E_{sonar}$)
