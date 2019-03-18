@@ -104,7 +104,7 @@ Where E~sonar~ is the energy cost of sonar exposure, P~in~ is the rate of energy
 
 The first term ($P_{in} \times t_d$) is the energy the animal would have consumed during foraging. The second term ($P_{out}(U_f) \times t_f$) is the additional energy spent in elevated locomotion.
 
-## Rate of consumption ($P_{in}$)
+## Consumption power ($P_{in}$)
 
 The rate of consumption is the product of feeding rates and prey quality. We estimated feeding rates from tag data (lunges for rorquals, buzzes for odontocetes) and prey quality from active acoustics (rorquals) or stomach contents (odontocetes).
 
@@ -277,4 +277,144 @@ Pin_tbl %>%
         legend.justification = c(0, 0),
         legend.title = element_blank(),
         legend.direction = "horizontal")
+```
+
+## Flight power ($P_{out}$)
+
+The rate of energy expenditure during the flight response (flight power) is a function of the animals' elevated speed. In turn, stroke frequency has a relationship with body length dependent on speed. I modeled flight power as:
+
+$$P_{out}(U_f) = (f_s(U_f) - f_s(U_b)) \times C_L \times m$$
+
+Where f~s~ is a function relating stroke frequency to swimming speed, U~f~ and U~b~ are the animal's speed during the flight response and the basal, undisturbed state, C~L~ is the mass-specific locomotor cost of fluking (Williams et al. 2017), and m is the animal's mass.
+
+### Fluking frequencies (f~f~)
+
+Animals can swim efficiently by maintaining a Strouhal number of approximately 0.3 (Rohr & Fish 2004). The Strouhal number is a dimensionless ratio of the form:
+
+$$S_t = \frac{f}{U}A$$
+
+Where $A$ is the stroke amplitude. Cetacean stroke amplitudes are typically one fifth body length (reference?), so by fixing $S_t$ at 0.3 I can estimate stroking frequencies for a given speed as:
+
+$$f = \frac{1.5U}{L}$$
+
+Where $L$ is the length of the animal.
+
+The cruising speed of swimming animals is invariant with size (Sato et al. 2007), about 1.5 m/s. The predicted stroking frequencies for cetaceans in this study at cruising speed are:
+
+```{r}
+fs_fun <- function(U, L) 1.5 * U / L
+U_b_ms <- 1.5
+
+morphologies %>% 
+  mutate(f_s = fs_fun(U_b_ms, Length_m)) %>% 
+  ggplot(aes(Length_m, f_s)) +
+  geom_line() +
+  expand_limits(x = 1) +
+  scale_x_log10(breaks = c(2, seq(0, 25, by = 5))) +
+  scale_y_log10(breaks = c(0.1, 0.5, 1, 1.5)) +
+  labs(x = "Length (m)",
+       y = "Stroke frequency (Hz)") +
+  theme_classic()
+```
+
+### Locomotor cost ($C_L$)
+
+Williams et al. 2017 calculated *C~L~* for cruising speeds as:
+
+$$C_L = 1.46 + 0.0005m$$
+
+![alt text](img/Williams_etal_2017_fig6.png "Williams et al. 2017 locomotor costs")
+
+The grey line in this figure (reproduced from Williams et al. 2017) is C~L~ at cruising speeds and the red line is at maximum aerobic output. I extrapolated the grey line to estimate C~L~ for all cetaceans, which I recognize is dodgy but it's the best available data.
+
+```{r}
+CL_fun <- function(m) 1.46 + 0.0005 * m
+```
+
+### Modeled $P_{out}$
+
+I present two case studies for the increased locomotor costs of the flight response. *Z. cavirostris and B. musculus? Do I need to use tag data? Can I get $U_f$ from the literature?*
+
+```{r}
+Pout_fun <- function(u, l, m) {
+  f_f <- fs_fun(u, l)
+  f_b <- fs_fun(U_b_ms, l)
+  (f_f - f_b) * CL_fun(m) * m
+}
+```
+
+# Total energetic cost ($E_{sonar}$)
+
+TODO: finish functional response section and get good estimates for $t_d$, $U_f$ and $t_f$. Present *x* case studies. *Which species do we have good data for?* For now, I'm trying the following:
+
+```{r, results="asis"}
+response_tbl <- tibble(binomial = factor(c("M. densirostris",
+                                           "Z. cavirostris",
+                                           "B. bonaerensis",
+                                           "B. musculus"),
+                                         levels = binom_levels),
+                       t_d_min = c(6*60,
+                                   6*60,
+                                   2.5*60,
+                                   60),
+                       t_f_min = c(30,
+                                   30,
+                                   60,
+                                   5),
+                       U_f_ms = c(4.5,
+                                  4.5,
+                                  3.5,
+                                  2.5),
+                       Reference = c("DeRuiter et al. 2013 Fig 1.",
+                                     "DeRuiter et al. 2013 Fig 1.",
+                                     "Kvadsheim et al. 2017 Fig 2.",
+                                     "Southall et al. 2019 bw11\\_219b"))
+
+response_tbl %>% 
+  rename(Species = binomial,
+         `$t_d \\text{ (min)}$` = t_d_min,
+         `$t_f \\text{ (min)}$` = t_f_min,
+         `$U_f \\text{ (m/s)}$` = U_f_ms) %>% 
+  kable("latex", booktabs = TRUE, escape = FALSE)
+```
+
+```{r, results="asis"}
+ratio_lbl <- function(x) {
+  x <- signif(x, 3)
+  case_when(x < 1 ~ sprintf("%.3f", x),
+            x < 10 ~ sprintf("%.2f", x),
+            x < 100 ~ sprintf("%.1f", x),
+            TRUE ~ sprintf("%.0f", x))
+}
+
+E_sonar_tbl <- response_tbl %>% 
+  left_join(select(morphologies,
+                   binomial,
+                   Mass_kg,
+                   Length_m),
+            by = "binomial") %>%
+  # P_in
+  left_join(Pin_tbl, by = "binomial") %>%
+  # P_out
+  mutate(f_f = fs_fun(U_f_ms, Length_m),
+         f_b = fs_fun(U_b_ms, Length_m),
+         C_L = CL_fun(Mass_kg),
+         Pout_W = Pout_fun(U_f_ms, Length_m, Mass_kg)) %>% 
+  # E_sonar
+  # The units are a little wonky. Intake is in units of kJ/hour and output
+  # is in J/s (W).
+  mutate(E_in_kJ = Pin_kJ_h * t_d_min / 60,
+         E_out_kJ = Pout_W / 1000 * t_f_min * 60,
+         E_sonar_kJ = E_in_kJ + E_out_kJ,
+         BMR_kcal_day = 70 * Mass_kg ^ 0.75,
+         BMR_kJ_day = BMR_kcal_day * 4.184,
+         E_BMR = E_sonar_kJ / BMR_kJ_day)
+
+E_sonar_tbl %>% 
+  transmute(Species = binomial,
+            `$E_{out} \\text{ (kJ)}$` = signif(E_out_kJ, 3),
+            `$E_{in} \\text{ (kJ)}$` = signif(E_in_kJ, 3),
+            `$E_{sonar} \\text{ (kJ)}$` = signif(E_sonar_kJ, 3),
+            `$E_{sonar}:\\text{ BMR}$` = ratio_lbl(E_BMR)) %>% 
+  kable("latex", booktabs = TRUE, escape = FALSE)
 ```
