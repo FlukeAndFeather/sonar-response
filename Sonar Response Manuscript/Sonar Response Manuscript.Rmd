@@ -1,0 +1,43 @@
+---
+title: Energetic Consequences of Sonar Exposure for Cetaceans
+author:
+  - name: Max F Czapanskiy
+    email: maxczap@stanford.edu
+    affiliation: "1"
+    footnote: Corresponding author
+  - name: Matthew S Savoca
+    affiliation: "1"
+  - name: Will T Gough
+    affiliation: "1"
+  - name: Jeremy A Goldbogen
+    affiliation: "1"
+address:
+  - code: "1"
+    address: Department of Biology, Hopkins Marine Station, Stanford University, 120 Ocean View Boulevard, Pacific Grove, CA 93950, USA
+abstract: |
+  The sub-lethal effects of sonar exposure for cetaceans is not well enough understood to predict population consequences. To better inform conservation planning, we developed a model to predict the energetic costs of sonar avoidance behavior. When avoiding sonar sources, cetaceans may cease foraging and/or flee the area. We estimate the potential energy intake lost to foraging cessation and the additional locomotor costs from increased swim speeds.
+
+  Although medium-sized cetaceans, especially beaked whales, make up the majority of mass strandings associated with naval sonar, our results indicate sub-lethal effects cause the most harm to large baleen whales. A severe response by a Cuvier's beaked whale (6.5 hour foraging cessation and 30 minutes of elevated swim speeds at 4.5 m/s) cost 49% of its daily basal metabolic requirements. Conversely, a moderate response by a blue whale (1 hour foraging cessation and 5 minutes of elevated swim speeds at 2.5 m/s) cost more than nine times its daily basal metabolic requirements. These results may be used to reduce harm to endangered cetacean species. 
+
+journal: "JEB? RSPB?"
+date: "`r Sys.Date()`"
+bibliography: bibliography.bib
+csl: elsevier-harvard.csl
+output: rticles::elsevier_article
+---
+
+Introduction
+============
+
+Naval exercises involving sonar have been linked to mass strandings of cetaceans worldwide since at least the 1980's [@simmonds_whales_1991; @frantzis_does_1998; @england_joint_2001; @jepson_gas-bubble_2003]. However, the population consequences of sub-lethal effects are not as well understood. Controlled exposure experiments (CEEs) show that behavioral responses may include cessation of feeding and/or fleeing the sonar source at elevated speed [@tyack_beaked_2011; @deruiter_first_2013; @goldbogen_blue_2013; @friedlaender_prey-mediated_2016; @deruiter_multivariate_2017; @kvadsheim_avoidance_2017; @southall_behavioral_2019; @wensveen_paul_j._northern_2019]. Quantitatively linking these behaviors to demographics requires an understanding of the impacts on individuals' health [@pirotta_understanding_2018]. The mechanism addressed here is reduced energy stores due to lost foraging opportunities and increased locomotor costs. 
+
+The two extant clades of cetaceans differ in their feeding styles. Toothed whales (odontocetes) are raptorial feeders and locate prey using echolocation [ref?]. Baleen whales (mysticetes) are filter feeders and capture prey by lunging [@goldbogen_scaling_2012] or continuous ram filter feeding [@werth_baleen_2016]. These feeding styles have profound effects on feeding rate, energy per feeding event, dive depth, and body size. Odontocetes feed at higher rates on smaller prey and most larger odontocetes must dive to extreme depths to find sufficient prey [ref?].  Lunge-feeding mysticetes (rorquals) engulf enormous quantities of prey-laden water, increasing the energy intake per feeding event but limiting dive depth and duration [@goldbogen_scaling_2012]. 
+
+*feeding rates can be estimated from tagging (lunges, buzzes), prey energy from active acoustics (rorquals) or the size of squid beaks and fish otoliths (?) in stomach contents (odontocetes)*
+
+Empirical estimates of cetacean metabolic rates are logistically challenging for smaller species and infeasible for larger species. Oxygen consumption has been measured for captive odontocetes trained to swim under a metabolic hood using open-flow respirometry, showing that mass-specific stroke costs are largely size invariant [@williams_physiology_1993; @williams_swimming_2017]. Whether these metabolic estimates scale to larger odontocetes or mysticetes is unknown, so other methods of estimating energy expediture include breathing rates and hydrodynamic models [@sumich_swimming_1983; @potvin_metabolic_2012].
+
+Animals swim efficiently by cruising at 1-2 m/s and maintaining a Strouhal number of 0.25 - 0.3 [@sato_katsufumi_stroke_2007; @rohr_strouhal_2004]. The Strouhal number is a dimensionless quantity $St = \frac{Af}{U}$ where $A$ is stroke amplitude, $f$ is stroke frequency, and $U$ is swimming speed. Cetacean stroke amplitudes are approximately one fifth body length [ref?] so there is a linear relationship between swimming speed and stroke frequency for animals of a given body size [gough?].
+
+References {#references .unnumbered}
+==========

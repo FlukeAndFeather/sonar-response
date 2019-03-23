@@ -1,0 +1,307 @@
+\documentclass[]{elsarticle} %review=doublespace preprint=single 5p=2 column
+%%% Begin My package additions %%%%%%%%%%%%%%%%%%%
+\usepackage[hyphens]{url}
+
+  \journal{JEB? RSPB?} % Sets Journal name
+
+
+\usepackage{lineno} % add
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+
+\bibliographystyle{elsarticle-harv}
+\biboptions{sort&compress} % For natbib
+\usepackage{graphicx}
+\usepackage{booktabs} % book-quality tables
+%%%%%%%%%%%%%%%% end my additions to header
+
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\usepackage{fixltx2e} % provides \textsubscript
+% use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[utf8]{inputenc}
+\else % if luatex or xelatex
+  \usepackage{fontspec}
+  \ifxetex
+    \usepackage{xltxtra,xunicode}
+  \fi
+  \defaultfontfeatures{Mapping=tex-text,Scale=MatchLowercase}
+  \newcommand{\euro}{€}
+\fi
+% use microtype if available
+\IfFileExists{microtype.sty}{\usepackage{microtype}}{}
+\ifxetex
+  \usepackage[setpagesize=false, % page size defined by xetex
+              unicode=false, % unicode breaks when used with xetex
+              xetex]{hyperref}
+\else
+  \usepackage[unicode=true]{hyperref}
+\fi
+\hypersetup{breaklinks=true,
+            bookmarks=true,
+            pdfauthor={},
+            pdftitle={Energetic Consequences of Sonar Exposure for Cetaceans},
+            colorlinks=false,
+            urlcolor=blue,
+            linkcolor=magenta,
+            pdfborder={0 0 0}}
+\urlstyle{same}  % don't use monospace font for urls
+
+\setcounter{secnumdepth}{0}
+% Pandoc toggle for numbering sections (defaults to be off)
+\setcounter{secnumdepth}{0}
+% Pandoc header
+
+
+
+\begin{document}
+\begin{frontmatter}
+
+  \title{Energetic Consequences of Sonar Exposure for Cetaceans}
+    \author[1]{Max F Czapanskiy\corref{c1}}
+   \ead{maxczap@stanford.edu} 
+   \cortext[c1]{Corresponding author}
+    \author[1]{Matthew S Savoca}
+  
+  
+    \author[1]{Will T Gough}
+  
+  
+    \author[1]{Jeremy A Goldbogen}
+  
+  
+      \address[1]{Department of Biology, Hopkins Marine Station, Stanford University, 120
+Ocean View Boulevard, Pacific Grove, CA 93950, USA}
+  
+  \begin{abstract}
+  The sub-lethal effects of sonar exposure for cetaceans is not well
+  enough understood to predict population consequences. To better inform
+  conservation planning, we developed a model to predict the energetic
+  costs of sonar avoidance behavior. When avoiding sonar sources,
+  cetaceans may cease foraging and/or flee the area. We estimate the
+  potential energy intake lost to foraging cessation and the additional
+  locomotor costs from increased swim speeds.
+  
+  Although medium-sized cetaceans, especially beaked whales, make up the
+  majority of mass strandings associated with naval sonar, our results
+  indicate sub-lethal effects cause the most harm to large baleen whales.
+  A severe response by a Cuvier's beaked whale (6.5 hour foraging
+  cessation and 30 minutes of elevated swim speeds at 4.5 m/s) cost 49\%
+  of its daily basal metabolic requirements. Conversely, a moderate
+  response by a blue whale (1 hour foraging cessation and 5 minutes of
+  elevated swim speeds at 2.5 m/s) cost more than nine times its daily
+  basal metabolic requirements. These results may be used to reduce harm
+  to endangered cetacean species.
+  \end{abstract}
+  
+ \end{frontmatter}
+
+\section{Introduction}\label{introduction}
+
+Naval exercises involving sonar have been linked to mass strandings of
+cetaceans worldwide since at least the 1980's (England et al., 2001;
+Frantzis, 1998; Jepson et al., 2003; Simmonds and Lopez-Jurado, 1991).
+However, the population consequences of sub-lethal effects are not as
+well understood. Controlled exposure experiments (CEEs) show that
+behavioral responses may include cessation of feeding and/or fleeing the
+sonar source at elevated speed (DeRuiter et al., 2017, 2013;
+Friedlaender et al., 2016; Goldbogen et al., 2013; Kvadsheim et al.,
+2017; Southall et al., 2019; Tyack et al., 2011; Wensveen Paul J. et
+al., 2019). Quantitatively linking these behaviors to demographics
+requires an understanding of the impacts on individuals' health (Pirotta
+et al., 2018). The mechanism addressed here is reduced energy stores due
+to lost foraging opportunities and increased locomotor costs.
+
+The two extant clades of cetaceans differ in their feeding styles.
+Toothed whales (odontocetes) are raptorial feeders and locate prey using
+echolocation {[}ref?{]}. Baleen whales (mysticetes) are filter feeders
+and capture prey by lunging (Goldbogen et al., 2012) or continuous ram
+filter feeding (Werth and Potvin, 2016). These feeding styles have
+profound effects on feeding rate, energy per feeding event, dive depth,
+and body size. Odontocetes feed at higher rates on smaller prey and most
+larger odontocetes must dive to extreme depths to find sufficient prey
+{[}ref?{]}. Lunge-feeding mysticetes (rorquals) engulf enormous
+quantities of prey-laden water, increasing the energy intake per feeding
+event but limiting dive depth and duration (Goldbogen et al., 2012).
+
+\emph{feeding rates can be estimated from tagging (lunges, buzzes), prey
+energy from active acoustics (rorquals) or the size of squid beaks and
+fish otoliths (?) in stomach contents (odontocetes)}
+
+Empirical estimates of cetacean metabolic rates are logistically
+challenging for smaller species and infeasible for larger species.
+Oxygen consumption has been measured for captive odontocetes trained to
+swim under a metabolic hood using open-flow respirometry, showing that
+mass-specific stroke costs are largely size invariant (Williams et al.,
+1993, 2017). Whether these metabolic estimates scale to larger
+odontocetes or mysticetes is unknown, so other methods of estimating
+energy expediture include breathing rates and hydrodynamic models
+(Potvin et al., 2012; Sumich, 1983).
+
+Animals swim efficiently by cruising at 1-2 m/s and maintaining a
+Strouhal number of 0.25 - 0.3 (Rohr and Fish, 2004; Sato Katsufumi et
+al., 2007). The Strouhal number is a dimensionless quantity
+\(St = \frac{Af}{U}\) where \(A\) is stroke amplitude, \(f\) is stroke
+frequency, and \(U\) is swimming speed. Cetacean stroke amplitudes are
+approximately one fifth body length {[}ref?{]} so there is a linear
+relationship between swimming speed and stroke frequency for animals of
+a given body size {[}gough?{]}.
+
+\section*{References}\label{references}
+\addcontentsline{toc}{section}{References}
+
+\hypertarget{refs}{}
+\hypertarget{ref-deruiter_multivariate_2017}{}
+DeRuiter, S.L., Langrock, R., Skirbutas, T., Goldbogen, J.A.,
+Calambokidis, J., Friedlaender, A.S., Southall, B.L., 2017. A
+multivariate mixed hidden markov model for blue whale behaviour and
+responses to sound exposure. The Annals of Applied Statistics 11,
+362--392. \url{https://doi.org/10.1214/16-AOAS1008}
+
+\hypertarget{ref-deruiter_first_2013}{}
+DeRuiter, S.L., Southall, B.L., Calambokidis, J., Zimmer, W.M.X.,
+Sadykova, D., Falcone, E.A., Friedlaender, A.S., Joseph, J.E., Moretti,
+D., Schorr, G.S., Thomas, L., Tyack, P.L., 2013. First direct
+measurements of behavioural responses by cuvier's beaked whales to
+mid-frequency active sonar. Biology Letters 9, 20130223--20130223.
+\url{https://doi.org/10.1098/rsbl.2013.0223}
+
+\hypertarget{ref-england_joint_2001}{}
+England, G.R., Evans, D., Lautenbacher, C., Morrissey, S., Hogarth, W.,
+others, 2001. Joint interim report bahamas marine mammal stranding event
+of 15-16 march 2000. US Department of Commerce, US Secretary of the
+Navy.
+
+\hypertarget{ref-frantzis_does_1998}{}
+Frantzis, A., 1998. Does acoustic testing strand whales? Nature 392,
+29--29. \url{https://doi.org/10.1038/32068}
+
+\hypertarget{ref-friedlaender_prey-mediated_2016}{}
+Friedlaender, A.S., Hazen, E.L., Goldbogen, J.A., Stimpert, A.K.,
+Calambokidis, J., Southall, B.L., 2016. Prey-mediated behavioral
+responses of feeding blue whales in controlled sound exposure
+experiments. Ecological Applications 26, 1075--1085.
+\url{https://doi.org/10.1002/15-0783}
+
+\hypertarget{ref-goldbogen_scaling_2012}{}
+Goldbogen, J.A., Calambokidis, J., Croll, D.A., McKenna, M.F., Oleson,
+E., Potvin, J., Pyenson, N.D., Schorr, G., Shadwick, R.E., Tershy, B.R.,
+2012. Scaling of lunge-feeding performance in rorqual whales:
+Mass-specific energy expenditure increases with body size and
+progressively limits diving capacity. Functional Ecology 26, 216--226.
+\url{https://doi.org/10.1111/j.1365-2435.2011.01905.x}
+
+\hypertarget{ref-goldbogen_blue_2013}{}
+Goldbogen, J.A., Southall, B.L., DeRuiter, S.L., Calambokidis, J.,
+Friedlaender, A.S., Hazen, E.L., Falcone, E.A., Schorr, G.S., Douglas,
+A., Moretti, D.J., Kyburg, C., McKenna, M.F., Tyack, P.L., 2013. Blue
+whales respond to simulated mid-frequency military sonar. Proceedings of
+the Royal Society B: Biological Sciences 280, 20130657--20130657.
+\url{https://doi.org/10.1098/rspb.2013.0657}
+
+\hypertarget{ref-jepson_gas-bubble_2003}{}
+Jepson, P.D., Arbelo, M., Deaville, R., Patterson, I.A.P., Castro, P.,
+Baker, J.R., Degollada, E., Ross, H.M., Herráez, P., Pocknell, A.M.,
+Rodríguez, F., Howie, F.E., Espinosa, A., Reid, R.J., Jaber, J.R.,
+Martin, V., Cunningham, A.A., Fernández, A., 2003. Gas-bubble lesions in
+stranded cetaceans. Nature 425, 575--576.
+\url{https://doi.org/10.1038/425575a}
+
+\hypertarget{ref-kvadsheim_avoidance_2017}{}
+Kvadsheim, P.H., DeRuiter, S., Sivle, L.D., Goldbogen, J.,
+Roland-Hansen, R., Miller, P.J., Lam, F.-P.A., Calambokidis, J.,
+Friedlaender, A., Visser, F., Tyack, P.L., Kleivane, L., Southall, B.,
+2017. Avoidance responses of minke whales to 1--4 kHz naval sonar.
+Marine Pollution Bulletin 121, 60--68.
+\url{https://doi.org/10.1016/j.marpolbul.2017.05.037}
+
+\hypertarget{ref-pirotta_understanding_2018}{}
+Pirotta, E., Booth, C.G., Costa, D.P., Fleishman, E., Kraus, S.D.,
+Lusseau, D., Moretti, D., New, L.F., Schick, R.S., Schwarz, L.K.,
+Simmons, S.E., Thomas, L., Tyack, P.L., Weise, M.J., Wells, R.S.,
+Harwood, J., 2018. Understanding the population consequences of
+disturbance. Ecology and Evolution 8, 9934--9946.
+\url{https://doi.org/10.1002/ece3.4458}
+
+\hypertarget{ref-potvin_metabolic_2012}{}
+Potvin, J., Goldbogen, J.A., Shadwick, R.E., 2012. Metabolic
+expenditures of lunge feeding rorquals across scale: Implications for
+the evolution of filter feeding and the limits to maximum body size.
+PLOS ONE 7, e44854. \url{https://doi.org/10.1371/journal.pone.0044854}
+
+\hypertarget{ref-rohr_strouhal_2004}{}
+Rohr, J.J., Fish, F.E., 2004. Strouhal numbers and optimization of
+swimming by odontocete cetaceans. Journal of Experimental Biology 207,
+1633--1642. \url{https://doi.org/10.1242/jeb.00948}
+
+\hypertarget{ref-sato_katsufumi_stroke_2007}{}
+Sato Katsufumi, Watanuki Yutaka, Takahashi Akinori, Miller Patrick J.O,
+Tanaka Hideji, Kawabe Ryo, Ponganis Paul J, Handrich Yves, Akamatsu
+Tomonari, Watanabe Yuuki, Mitani Yoko, Costa Daniel P, Bost
+Charles-André, Aoki Kagari, Amano Masao, Trathan Phil, Shapiro Ari,
+Naito Yasuhiko, 2007. Stroke frequency, but not swimming speed, is
+related to body size in free-ranging seabirds, pinnipeds and cetaceans.
+Proceedings of the Royal Society B: Biological Sciences 274, 471--477.
+\url{https://doi.org/10.1098/rspb.2006.0005}
+
+\hypertarget{ref-simmonds_whales_1991}{}
+Simmonds, M.P., Lopez-Jurado, L.F., 1991. Whales and the military.
+Nature 351, 448. \url{https://doi.org/10.1038/351448a0}
+
+\hypertarget{ref-southall_behavioral_2019}{}
+Southall, B.L., DeRuiter, S.L., Friedlaender, A., Stimpert, A.K.,
+Goldbogen, J.A., Hazen, E., Casey, C., Fregosi, S., Cade, D.E., Allen,
+A.N., Harris, C.M., Schorr, G., Moretti, D., Guan, S., Calambokidis, J.,
+2019. Behavioral responses of individual blue whales (
+\emph{balaenoptera musculus} ) to mid-frequency military sonar. The
+Journal of Experimental Biology 222, jeb190637.
+\url{https://doi.org/10.1242/jeb.190637}
+
+\hypertarget{ref-sumich_swimming_1983}{}
+Sumich, J.L., 1983. Swimming velocities, breathing patterns, and
+estimated costs of locomotion in migrating gray whales,
+\emph{eschrichtius robustus}. Canadian Journal of Zoology 61, 647--652.
+\url{https://doi.org/10.1139/z83-086}
+
+\hypertarget{ref-tyack_beaked_2011}{}
+Tyack, P.L., Zimmer, W.M.X., Moretti, D., Southall, B.L., Claridge,
+D.E., Durban, J.W., Clark, C.W., D'Amico, A., DiMarzio, N., Jarvis, S.,
+McCarthy, E., Morrissey, R., Ward, J., Boyd, I.L., 2011. Beaked whales
+respond to simulated and actual navy sonar. PLoS ONE 6, e17009.
+\url{https://doi.org/10.1371/journal.pone.0017009}
+
+\hypertarget{ref-wensveen_paul_j._northern_2019}{}
+Wensveen Paul J., Isojunno Saana, Hansen Rune R., von Benda-Beckmann
+Alexander M., Kleivane Lars, van IJsselmuide Sander, Lam Frans-Peter A.,
+Kvadsheim Petter H., DeRuiter Stacy L., Curé Charlotte, Narazaki Tomoko,
+Tyack Peter L., Miller Patrick J. O., 2019. Northern bottlenose whales
+in a pristine environment respond strongly to close and distant navy
+sonar signals. Proceedings of the Royal Society B: Biological Sciences
+286, 20182592. \url{https://doi.org/10.1098/rspb.2018.2592}
+
+\hypertarget{ref-werth_baleen_2016}{}
+Werth, A.J., Potvin, J., 2016. Baleen hydrodynamics and morphology of
+cross-flow filtration in balaenid whale suspension feeding. PLOS ONE 11,
+e0150106. \url{https://doi.org/10.1371/journal.pone.0150106}
+
+\hypertarget{ref-williams_physiology_1993}{}
+Williams, T.M., Friedl, W.A., Haun, J.E., 1993. The physiology of
+bottlenose dolphins (tursiops truncatus): Heart rate, metabolic rate and
+plasma lactate concentration during exercise. Journal of Experimental
+Biology 179, 31--46.
+
+\hypertarget{ref-williams_swimming_2017}{}
+Williams, T.M., Kendall, T.L., Richter, B.P., Ribeiro-French, C.R.,
+John, J.S., Odell, K.L., Losch, B.A., Feuerbach, D.A., Stamper, M.A.,
+2017. Swimming and diving energetics in dolphins: A stroke-by-stroke
+analysis for predicting the cost of flight responses in wild
+odontocetes. The Journal of Experimental Biology 220, 1135--1145.
+\url{https://doi.org/10.1242/jeb.154245}
+
+\end{document}
+
+
