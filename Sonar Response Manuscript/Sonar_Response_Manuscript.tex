@@ -34,6 +34,16 @@
 \fi
 % use microtype if available
 \IfFileExists{microtype.sty}{\usepackage{microtype}}{}
+\usepackage{graphicx}
+% We will generate all images so they have a width \maxwidth. This means
+% that they will get their normal width if they fit onto the page, but
+% are scaled down if they would overflow the margins.
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth
+\else\Gin@nat@width\fi}
+\makeatother
+\let\Oldincludegraphics\includegraphics
+\renewcommand{\includegraphics}[1]{\Oldincludegraphics[width=\maxwidth]{#1}}
 \ifxetex
   \usepackage[setpagesize=false, % page size defined by xetex
               unicode=false, % unicode breaks when used with xetex
@@ -57,6 +67,8 @@
 % Pandoc header
 \usepackage{setspace}
 \usepackage{lineno}
+\usepackage{threeparttable}
+\usepackage{float}
 
 
 
@@ -115,11 +127,11 @@ well understood. Controlled exposure experiments (CEEs) show that
 behavioral responses may include cessation of feeding and/or fleeing the
 sonar source at elevated speed (DeRuiter et al., 2017, 2013;
 Friedlaender et al., 2016; Goldbogen et al., 2013; Kvadsheim et al.,
-2017; Southall et al., 2019; Tyack et al., 2011; Wensveen Paul J. et
-al., 2019). Quantitatively linking these behaviors to demographics
-requires an understanding of the impacts on individuals' health (Pirotta
-et al., 2018). The mechanism addressed here is reduced energy stores due
-to lost foraging opportunities and increased locomotor costs.
+2017; Southall et al., 2019; Tyack et al., 2011; Wensveen et al., 2019).
+Quantitatively linking these behaviors to demographics requires an
+understanding of the impacts on individuals' health (Pirotta et al.,
+2018). The mechanism addressed here is reduced energy stores due to lost
+foraging opportunities and increased locomotor costs.
 
 The two extant clades of cetaceans differ in their feeding styles.
 Toothed whales (odontocetes) are raptorial feeders and locate prey using
@@ -157,8 +169,8 @@ energy expediture include breathing rates and hydrodynamic models
 (Potvin et al., 2012; Sumich, 1983).
 
 Animals swim efficiently by cruising at 1-2 m/s and maintaining a
-Strouhal number of 0.25 - 0.3 (Rohr and Fish, 2004; Sato Katsufumi et
-al., 2007). The Strouhal number is a dimensionless quantity
+Strouhal number of 0.25 - 0.3 (Katsufumi et al., 2007; Rohr and Fish,
+2004). The Strouhal number is a dimensionless quantity
 \(St = \frac{Af}{U}\) where \(A\) is stroke amplitude, \(f\) is stroke
 frequency, and \(U\) is swimming speed. Cetacean stroke amplitudes are
 approximately one fifth body length {[}ref?{]} so there is a linear
@@ -218,10 +230,10 @@ relationships do not hold for larger cetaceans (Williams et al., 2017).
 To be conservative, we use the \(C_L\) scaling relationship for cruising
 speeds, estimated as \(C_L = 1.46 + 0.0005m\) in
 \(J \cdot stroke^{-1} \cdot kg^{-1}\). We chose 1.5 m/s for \(U_c\)
-based on size-invariant scaling of cruising speeds (Sato Katsufumi et
-al., 2007). Assuming cetaceans maintain a Strouhal number of 0.3 and
-stroke amplitude is one fifth body length, stroking frequency as a
-function of body length is:
+based on size-invariant scaling of cruising speeds (Katsufumi et al.,
+2007). Assuming cetaceans maintain a Strouhal number of 0.3 and stroke
+amplitude is one fifth body length, stroking frequency as a function of
+body length is:
 
 \begin{align}
 S_t &= \frac{Af}{U} \notag\\
@@ -244,8 +256,70 @@ of flight (\(U_f\)) were selected based on tag data. These values should
 be considered realistic scenarios, but not the typical or most common
 response. Behavioral responses to sonar exposure are highly variable and
 seem to depend on received sound level, distance to source, foraging
-behavior, and habituation (Southall et al., 2019; Wensveen Paul J. et
-al., 2019).
+behavior, and habituation (Southall et al., 2019; Wensveen et al.,
+2019).
+
+\section{Results}\label{results}
+
+\subsection{\texorpdfstring{Consumption power
+(\(P_{in}\))}{Consumption power (P\_\{in\})}}\label{consumption-power-p_in-1}
+
+Feeding rates were derived from tag data and tended to decrease with
+body size. Rorqual feeding rates ranged from 10.7 to 44.1 lunges/hour
+and odontocete feeding rates ranged from 2.5 to 96.8 buzzes/hour (Table
+\ref{rf_tbl}).
+
+\begin{table}[t]
+
+\caption{\label{tab:unnamed-chunk-1}Cetacean feeding rates \label{rf_tbl}}
+\centering
+\begin{threeparttable}
+\begin{tabular}{llrr}
+\toprule
+Group & Species & $r_f$ & N\\
+\midrule
+Odontocete & \textit{Phocoena phocoena} & 96.8 & 8\\
+Odontocete & \textit{Grampus griseus} & 17.7 & 17\\
+Odontocete & \textit{Mesoplodon densirostris} & 13.0 & 14\\
+Odontocete & \textit{Globicephala macrorhynchus} & 2.5 & 2\\
+Odontocete & \textit{Globicephala melas} & 7.9 & 9\\
+Odontocete & \textit{Orcinus orca} & 9.7 & 10\\
+Odontocete & \textit{Ziphius cavirostris} & 12.8 & 4\\
+Odontocete & \textit{Berardius bairdii} & 4.6 & 1\\
+Odontocete & \textit{Physeter macrocephalus} & 12.5 & 36\\
+Rorqual & \textit{Balaenoptera bonaerensis} & 44.1 & 3\\
+Rorqual & \textit{Megaptera novaeangliae} & 17.2 & 6\\
+Rorqual & \textit{Balaenoptera physalus} & 13.3 & 3\\
+Rorqual & \textit{Balaenoptera musculus} & 10.7 & 11\\
+\bottomrule
+\end{tabular}
+\begin{tablenotes}
+\item \textit{Note: } 
+\item $r_f$ is lunges/hour (rorquals) or buzzes/hour (odontocetes)
+\item Species ordered by size within groups.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}
+
+Prey energy per feeding event was empirically derived from acoustic
+backscatter (mysticetes) and stomach samples (odontocetes). Filter
+feeders consumed the most energy per feeding event. Generally,
+delphinids targeted more energy-rich prey than Ziphids (Fig.
+\ref{Ep_fig}).
+
+\subsection{\texorpdfstring{Flight power
+(\(P_{out}\))}{Flight power (P\_\{out\})}}\label{flight-power-p_out-1}
+
+\subsection{Case studies}\label{case-studies-1}
+
+\section{Figures}\label{figures}
+
+\begin{figure}
+\centering
+\includegraphics{Sonar_Response_Manuscript_files/figure-latex/unnamed-chunk-2-1.pdf}
+\caption{Energy per feeding event. Note log scale on y-axis.
+\label{Ep_fig}}
+\end{figure}
 
 \section*{References}\label{references}
 \addcontentsline{toc}{section}{References}
@@ -312,6 +386,15 @@ Martin, V., Cunningham, A.A., Fernández, A., 2003. Gas-bubble lesions in
 stranded cetaceans. Nature 425, 575--576.
 \url{https://doi.org/10.1038/425575a}
 
+\hypertarget{ref-katsufumi_stroke_2007}{}
+Katsufumi, S., Yutaka, W., Akinori, T., J.O, M.P., Hideji, T., Ryo, K.,
+J, P.P., Yves, H., Tomonari, A., Yuuki, W., Yoko, M., P, C.D.,
+Charles-André, B., Kagari, A., Masao, A., Phil, T., Ari, S., Yasuhiko,
+N., 2007. Stroke frequency, but not swimming speed, is related to body
+size in free-ranging seabirds, pinnipeds and cetaceans. Proceedings of
+the Royal Society B: Biological Sciences 274, 471--477.
+\url{https://doi.org/10.1098/rspb.2006.0005}
+
 \hypertarget{ref-kvadsheim_avoidance_2017}{}
 Kvadsheim, P.H., DeRuiter, S., Sivle, L.D., Goldbogen, J.,
 Roland-Hansen, R., Miller, P.J., Lam, F.-P.A., Calambokidis, J.,
@@ -339,16 +422,6 @@ Rohr, J.J., Fish, F.E., 2004. Strouhal numbers and optimization of
 swimming by odontocete cetaceans. Journal of Experimental Biology 207,
 1633--1642. \url{https://doi.org/10.1242/jeb.00948}
 
-\hypertarget{ref-sato_katsufumi_stroke_2007}{}
-Sato Katsufumi, Watanuki Yutaka, Takahashi Akinori, Miller Patrick J.O,
-Tanaka Hideji, Kawabe Ryo, Ponganis Paul J, Handrich Yves, Akamatsu
-Tomonari, Watanabe Yuuki, Mitani Yoko, Costa Daniel P, Bost
-Charles-André, Aoki Kagari, Amano Masao, Trathan Phil, Shapiro Ari,
-Naito Yasuhiko, 2007. Stroke frequency, but not swimming speed, is
-related to body size in free-ranging seabirds, pinnipeds and cetaceans.
-Proceedings of the Royal Society B: Biological Sciences 274, 471--477.
-\url{https://doi.org/10.1098/rspb.2006.0005}
-
 \hypertarget{ref-simmonds_whales_1991}{}
 Simmonds, M.P., Lopez-Jurado, L.F., 1991. Whales and the military.
 Nature 351, 448. \url{https://doi.org/10.1038/351448a0}
@@ -375,14 +448,14 @@ McCarthy, E., Morrissey, R., Ward, J., Boyd, I.L., 2011. Beaked whales
 respond to simulated and actual navy sonar. PLoS ONE 6, e17009.
 \url{https://doi.org/10.1371/journal.pone.0017009}
 
-\hypertarget{ref-wensveen_paul_j._northern_2019}{}
-Wensveen Paul J., Isojunno Saana, Hansen Rune R., von Benda-Beckmann
-Alexander M., Kleivane Lars, van IJsselmuide Sander, Lam Frans-Peter A.,
-Kvadsheim Petter H., DeRuiter Stacy L., Curé Charlotte, Narazaki Tomoko,
-Tyack Peter L., Miller Patrick J. O., 2019. Northern bottlenose whales
-in a pristine environment respond strongly to close and distant navy
-sonar signals. Proceedings of the Royal Society B: Biological Sciences
-286, 20182592. \url{https://doi.org/10.1098/rspb.2018.2592}
+\hypertarget{ref-wensveen_northern_2019}{}
+Wensveen, P.J., Saana, I., Hansen, R.R., Benda-Beckmann, A.M. von,
+Kleivane, L., IJsselmuide, S. van, Lam, F.-P.A., Kvadsheim, P.H.,
+DeRuiter, S.L., Curé, C., Narazaki, T., Tyack, P.L., Miller, P.J., 2019.
+Northern bottlenose whales in a pristine environment respond strongly to
+close and distant navy sonar signals. Proceedings of the Royal Society
+B: Biological Sciences 286, 20182592.
+\url{https://doi.org/10.1098/rspb.2018.2592}
 
 \hypertarget{ref-werth_baleen_2016}{}
 Werth, A.J., Potvin, J., 2016. Baleen hydrodynamics and morphology of

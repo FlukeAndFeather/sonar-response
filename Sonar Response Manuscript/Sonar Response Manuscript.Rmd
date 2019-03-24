@@ -27,15 +27,22 @@ output: rticles::elsevier_article
 header-includes:
   - \usepackage{setspace}
   - \usepackage{lineno}
+  - \usepackage{threeparttable}
+  - \usepackage{float}
 ---
 
 \doublespacing
 \linenumbers
 
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE,
+                      fig.height = 3, fig.width = 5)
+```
+
 Introduction
 ============
 
-Naval exercises involving sonar have been linked to mass strandings of cetaceans worldwide since at least the 1980's [@simmonds_whales_1991; @frantzis_does_1998; @england_joint_2001; @jepson_gas-bubble_2003]. However, the population consequences of sub-lethal effects are not as well understood. Controlled exposure experiments (CEEs) show that behavioral responses may include cessation of feeding and/or fleeing the sonar source at elevated speed [@tyack_beaked_2011; @deruiter_first_2013; @goldbogen_blue_2013; @friedlaender_prey-mediated_2016; @deruiter_multivariate_2017; @kvadsheim_avoidance_2017; @southall_behavioral_2019; @wensveen_paul_j._northern_2019]. Quantitatively linking these behaviors to demographics requires an understanding of the impacts on individuals' health [@pirotta_understanding_2018]. The mechanism addressed here is reduced energy stores due to lost foraging opportunities and increased locomotor costs. 
+Naval exercises involving sonar have been linked to mass strandings of cetaceans worldwide since at least the 1980's [@simmonds_whales_1991; @frantzis_does_1998; @england_joint_2001; @jepson_gas-bubble_2003]. However, the population consequences of sub-lethal effects are not as well understood. Controlled exposure experiments (CEEs) show that behavioral responses may include cessation of feeding and/or fleeing the sonar source at elevated speed [@tyack_beaked_2011; @deruiter_first_2013; @goldbogen_blue_2013; @friedlaender_prey-mediated_2016; @deruiter_multivariate_2017; @kvadsheim_avoidance_2017; @southall_behavioral_2019; @wensveen_northern_2019]. Quantitatively linking these behaviors to demographics requires an understanding of the impacts on individuals' health [@pirotta_understanding_2018]. The mechanism addressed here is reduced energy stores due to lost foraging opportunities and increased locomotor costs. 
 
 The two extant clades of cetaceans differ in their feeding styles. Toothed whales (odontocetes) are raptorial feeders and locate prey using echolocation [ref?]. Baleen whales (mysticetes) are filter feeders and capture prey by lunging [@goldbogen_scaling_2012] or continuous ram filter feeding [@werth_baleen_2016]. These feeding styles have profound effects on feeding rate, energy per feeding event, dive depth, and body size. Odontocetes feed at higher rates on smaller prey and most larger odontocetes must dive to extreme depths to find sufficient prey [ref?].  Lunge-feeding mysticetes (rorquals) engulf enormous quantities of prey-laden water, increasing the energy intake per feeding event but limiting dive depth and duration [@goldbogen_scaling_2012]. 
 
@@ -43,7 +50,7 @@ Feeding rates and the energy obtained per feeding event can be empirically measu
 
 Empirical estimates of cetacean metabolic rates are logistically challenging for smaller species and infeasible for larger species. Oxygen consumption has been measured for captive odontocetes trained to swim under a metabolic hood using open-flow respirometry, showing that mass-specific stroke costs are largely size invariant [@williams_physiology_1993; @williams_swimming_2017]. Whether these metabolic estimates scale to larger odontocetes or mysticetes is unknown, so other methods of estimating energy expediture include breathing rates and hydrodynamic models [@sumich_swimming_1983; @potvin_metabolic_2012].
 
-Animals swim efficiently by cruising at 1-2 m/s and maintaining a Strouhal number of 0.25 - 0.3 [@sato_katsufumi_stroke_2007; @rohr_strouhal_2004]. The Strouhal number is a dimensionless quantity $St = \frac{Af}{U}$ where $A$ is stroke amplitude, $f$ is stroke frequency, and $U$ is swimming speed. Cetacean stroke amplitudes are approximately one fifth body length [ref?] so there is a linear relationship between swimming speed and stroke frequency for animals of a given body size [gough?].
+Animals swim efficiently by cruising at 1-2 m/s and maintaining a Strouhal number of 0.25 - 0.3 [@katsufumi_stroke_2007; @rohr_strouhal_2004]. The Strouhal number is a dimensionless quantity $St = \frac{Af}{U}$ where $A$ is stroke amplitude, $f$ is stroke frequency, and $U$ is swimming speed. Cetacean stroke amplitudes are approximately one fifth body length [ref?] so there is a linear relationship between swimming speed and stroke frequency for animals of a given body size [gough?].
 
 Methods
 =======
@@ -68,7 +75,7 @@ The locomotor costs associated with fleeing the sonar source is the energetic co
 P_{out}(U_f) = (f_s(U_f) - f_s(U_c)) \times C_L \times m
 \end{align}
 
-Where $f_s$ is a function relating stroke frequency to swimming speed, $U_f$ and $U_c$ are the swimming speeds during the flight response and cruising, $C_L$ is the mass-specific locomotor cost of a stroke, and $m$ is the animal's mass. Equation (2) assumes, during the flight response, cetaceans increase swimming speed and stroke frequency, but the mass-specific locomotor cost of a stroke remains the same regardless of speed. Although $C_L$ increases with swimming speed, the scaling relationships do not hold for larger cetaceans [@williams_swimming_2017]. To be conservative, we use the $C_L$ scaling relationship for cruising speeds, estimated as $C_L = 1.46 + 0.0005m$ in $J \cdot stroke^{-1} \cdot kg^{-1}$. We chose 1.5 m/s for $U_c$ based on size-invariant scaling of cruising speeds [@sato_katsufumi_stroke_2007]. Assuming cetaceans maintain a Strouhal number of 0.3 and stroke amplitude is one fifth body length, stroking frequency as a function of body length is:
+Where $f_s$ is a function relating stroke frequency to swimming speed, $U_f$ and $U_c$ are the swimming speeds during the flight response and cruising, $C_L$ is the mass-specific locomotor cost of a stroke, and $m$ is the animal's mass. Equation (2) assumes, during the flight response, cetaceans increase swimming speed and stroke frequency, but the mass-specific locomotor cost of a stroke remains the same regardless of speed. Although $C_L$ increases with swimming speed, the scaling relationships do not hold for larger cetaceans [@williams_swimming_2017]. To be conservative, we use the $C_L$ scaling relationship for cruising speeds, estimated as $C_L = 1.46 + 0.0005m$ in $J \cdot stroke^{-1} \cdot kg^{-1}$. We chose 1.5 m/s for $U_c$ based on size-invariant scaling of cruising speeds [@katsufumi_stroke_2007]. Assuming cetaceans maintain a Strouhal number of 0.3 and stroke amplitude is one fifth body length, stroking frequency as a function of body length is:
 
 \begin{align}
 S_t &= \frac{Af}{U} \notag\\
@@ -76,7 +83,153 @@ f &= \frac{1.5U}{L}
 \end{align}
 
 ## Case studies
-We analyzed tag data from four controlled exposure experiments (CEEs) and applied the $E_{sonar}$ model to estimate energetic costs of observed behavioral responses to sonar exposure [BRS ref?]. As part of an on-going behavioral response study to naval sonar, in 2011-2015 *(???)* Blainville's beaked whales (*Mesoplodon densirostris*), Cuvier's beaked whales (*Ziphius cavirostris*), northern minke whales (*Balaenoptera acutorostrata*), and blue whales (*B. musculus*) were tracked with multi-sensor tags and exposed to mid-frequency active sonar in Southern California. Time displaced from foraging ($t_d$), time in flight ($t_f$), and speed of flight ($U_f$) were selected based on tag data. These values should be considered realistic scenarios, but not the typical or most common response. Behavioral responses to sonar exposure are highly variable and seem to depend on received sound level, distance to source, foraging behavior, and habituation [@southall_behavioral_2019; @wensveen_paul_j._northern_2019].
+We analyzed tag data from four controlled exposure experiments (CEEs) and applied the $E_{sonar}$ model to estimate energetic costs of observed behavioral responses to sonar exposure [BRS ref?]. As part of an on-going behavioral response study to naval sonar, in 2011-2015 *(???)* Blainville's beaked whales (*Mesoplodon densirostris*), Cuvier's beaked whales (*Ziphius cavirostris*), northern minke whales (*Balaenoptera acutorostrata*), and blue whales (*B. musculus*) were tracked with multi-sensor tags and exposed to mid-frequency active sonar in Southern California. Time displaced from foraging ($t_d$), time in flight ($t_f$), and speed of flight ($U_f$) were selected based on tag data. These values should be considered realistic scenarios, but not the typical or most common response. Behavioral responses to sonar exposure are highly variable and seem to depend on received sound level, distance to source, foraging behavior, and habituation [@southall_behavioral_2019; @wensveen_northern_2019].
+
+```{r setup}
+library(tidyverse)
+library(scales)
+library(knitr)
+library(kableExtra)
+library(lmodel2)
+library(ggsci)
+
+# Load data
+# Morphological data
+abbr_binom = function(binom) {
+  paste(str_sub(binom, 1, 1), 
+        str_extract(binom, " .*"), 
+        sep = ".")
+}
+morphologies <- read_csv("../data/foragestats_combined_ko2.csv") %>% 
+  mutate(Species = str_replace(Species, "_", " ")) %>% 
+  group_by(Species) %>% 
+  summarize(Length_m = first(Body_length_m),
+            Mass_kg = first(Body_mass_kg)) %>% 
+  mutate(Clade = ifelse(str_detect(Species, ".*ptera.*"),
+                        "Mysticete",
+                        "Odontocete"),
+         Family = recode(Species,
+                         `Balaenoptera bonaerensis` = "Balaenopteridae",
+                         `Balaenoptera musculus` = "Balaenopteridae",
+                         `Balaenoptera physalus` = "Balaenopteridae",
+                         `Berardius bairdii` = "Ziphiidae",
+                         `Globicephala macrorhynchus` = "Delphinidae",
+                         `Globicephala melas` = "Delphinidae",
+                         `Grampus griseus` = "Delphinidae",
+                         `Megaptera novaeangliae` = "Balaenopteridae",
+                         `Mesoplodon densirostris` = "Ziphiidae",
+                         `Orcinus orca` = "Delphinidae",
+                         `Phocoena phocoena` = "Phocoenidae",
+                         `Physeter macrocephalus` = "Physeteridae",
+                         `Ziphius cavirostris` = "Ziphiidae")) %>% 
+  # binomial is a factor ordered by species length with an abbreviated label
+  arrange(Length_m) %>% 
+  mutate(binomial = factor(Species, 
+                           levels = unique(Species)))
+binom_levels <- levels(morphologies$binomial)
+
+# Prey data
+prey_data <- read_csv("../data/Cetacea model output BOUT_EXTANT_v2.csv") %>% 
+  select(-(X13:X25)) %>% 
+  mutate(Species = recode(Species,
+                          bonarensis = "bonaerensis",
+                          Phocaena = "phocoena"),
+         Genus = recode(Genus,
+                        Physter = "Physeter",
+                        Phocoaena = "Phocoena"),
+         binomial = factor(paste(Genus, Species),
+                           levels = binom_levels)) %>% 
+  filter(`MR exponent` == 0.45)  # data duplicated for multiple MR exponent values
+
+# Rorqual feeding rates
+rorqual_data <- read_csv("../data/lunge_rates_from_Paolo.csv") %>%
+  filter(species != "be") %>% 
+  mutate(duration_h = `deployment-time_secs` / 60 / 60,
+         binomial = factor(recode(species,
+                                  ba = "Balaenoptera bonaerensis",
+                                  bp = "Balaenoptera physalus",
+                                  bw = "Balaenoptera musculus",
+                                  mn = "Megaptera novaeangliae"),
+                           levels = binom_levels),
+         lunge_h = total_lunges / duration_h)
+
+# Odontocete feeding rates
+odontocete_data <- read_csv("../data/foragestats_combined_ko2.csv") %>%
+  mutate(binomial = factor(str_replace(Species, "_", " "),
+                           levels = binom_levels)) %>% 
+  filter(taxa == "O")
+
+# Labels for logarithmic scales
+log_labels <- trans_format("log10", math_format(10^.x))
+```
+
+Results
+=======
+
+## Consumption power ($P_{in}$)
+Feeding rates were derived from tag data and tended to decrease with body size. Rorqual feeding rates ranged from 10.7 to 44.1 lunges/hour and odontocete feeding rates ranged from 2.5 to 96.8 buzzes/hour (Table \ref{rf_tbl}).
+
+```{r results="asis"}
+# Rorqual lunge rates
+lunge_rate <- rorqual_data %>% 
+  filter(duration_h >= 24) %>%
+  group_by(Species = binomial) %>% 
+  summarize(N = n(),
+            `$r_f$` = round(mean(lunge_h), digits = 1)) %>% 
+  mutate(Group = "Rorqual")
+
+# Odontocete buzz rates
+buzz_rate <- odontocete_data %>%  
+  group_by(Species = binomial) %>% 
+  summarize(N = n(),
+            `$r_f$` = (total_buzz_count / total_duration_h) %>% 
+              mean(na.rm = TRUE) %>% 
+              round(digits = 1)) %>% 
+  mutate(Group = "Odontocete")
+
+# Feeding rate table
+rbind(buzz_rate, lunge_rate) %>% 
+  mutate(Species = sprintf("\\textit{%s}", Species)) %>%
+  select(Group, Species, `$r_f$`, N) %>% 
+  kable("latex", 
+        booktabs = TRUE, 
+        escape = FALSE,
+        caption = "Cetacean feeding rates \\label{rf_tbl}",
+        linesep = "") %>%
+  footnote(general = c("$r_f$ is lunges/hour (rorquals) or buzzes/hour (odontocetes)", 
+                       "Species ordered by size within groups."),
+           escape = FALSE,
+           threeparttable = TRUE)
+```
+
+Prey energy per feeding event was empirically derived from acoustic backscatter (mysticetes) and stomach samples (odontocetes). Filter feeders consumed the most energy per feeding event. Generally, delphinids targeted more energy-rich prey than Ziphids (Fig. \ref{Ep_fig}).
+
+## Flight power ($P_{out}$)
+
+## Case studies
+
+Figures
+=======
+```{r fig.cap = "Energy per feeding event. Note log scale on y-axis. \\label{Ep_fig}", fig.height=4.5, fig.pos="H"}
+prey_data %>% 
+  uncount(weights = Percent) %>% 
+  mutate(binomial = fct_relabel(binomial, abbr_binom)) %>% 
+  ggplot(aes(binomial, `Energy (kJ)`, color = Family)) +
+  geom_boxplot() +
+  scale_y_log10(name = "Energy per feeding event (kJ)",
+                labels = log_labels) +
+  scale_color_aaas() +
+  expand_limits(y = 1) +
+  theme_classic(base_size = 12) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(hjust = 1,
+                                   angle = 30,
+                                   face = "italic"),
+        legend.title = element_blank(),
+        legend.position = "bottom",
+        legend.direction = "horizontal",
+        legend.text = element_text(size = 8))
+```
 
 References {#references .unnumbered}
 ==========
