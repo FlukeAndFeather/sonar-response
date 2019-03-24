@@ -24,7 +24,13 @@ date: "`r Sys.Date()`"
 bibliography: bibliography.bib
 csl: elsevier-harvard.csl
 output: rticles::elsevier_article
+header-includes:
+  - \usepackage{setspace}
+  - \usepackage{lineno}
 ---
+
+\doublespacing
+\linenumbers
 
 Introduction
 ============
@@ -38,6 +44,39 @@ Feeding rates and the energy obtained per feeding event can be empirically measu
 Empirical estimates of cetacean metabolic rates are logistically challenging for smaller species and infeasible for larger species. Oxygen consumption has been measured for captive odontocetes trained to swim under a metabolic hood using open-flow respirometry, showing that mass-specific stroke costs are largely size invariant [@williams_physiology_1993; @williams_swimming_2017]. Whether these metabolic estimates scale to larger odontocetes or mysticetes is unknown, so other methods of estimating energy expediture include breathing rates and hydrodynamic models [@sumich_swimming_1983; @potvin_metabolic_2012].
 
 Animals swim efficiently by cruising at 1-2 m/s and maintaining a Strouhal number of 0.25 - 0.3 [@sato_katsufumi_stroke_2007; @rohr_strouhal_2004]. The Strouhal number is a dimensionless quantity $St = \frac{Af}{U}$ where $A$ is stroke amplitude, $f$ is stroke frequency, and $U$ is swimming speed. Cetacean stroke amplitudes are approximately one fifth body length [ref?] so there is a linear relationship between swimming speed and stroke frequency for animals of a given body size [gough?].
+
+Methods
+=======
+
+We considered the potential energy intake of lost feeding opportunities and additional energy expenditure from elevated swimming speeds in modeling the energetic consequences of sonar exposure. The model takes the form:
+
+\begin{align}
+E_{sonar} = P_{in} \times t_d + P_{out}(U_f) \times t_f
+\end{align}
+
+Where $E_{sonar}$ is the energy cost of sonar exposure, $P_{in}$ is consumption power (i.e. rate of energy intake) during undisturbed foraging, $t_d$ is the time displaced from foraging, $P_{out}$ is flight power (i.e. increased rate of locomotor costs), $U_f$ is the animal's speed during flight, and $t_f$ is the flight time. $P_{in}$ and $P_{out}$ are species-specific values and $t_d$, $U_f$, and $t_f$ are dependent on the individual's behavioral response to sonar exposure.
+
+## Consumption power ($P_{in}$)
+
+The rate of energy intake is the product of feeding rate ($r_f$) and prey energy per feeding event ($E_p$). $r_f$ was calculated as the lunge rate for rorquals and buzz rate for odontocetes using tag sensors. $E_p$ was derived using active acoustics (rorquals) and stomach contents (odontocetes) [ref?].
+
+## Flight power ($P_{out}$)
+
+The locomotor costs associated with fleeing the sonar source is the energetic cost of swimming at $U_f$ relative to the cruising swim speed. Using the relationship between stroke frequency and swimming speed and a scaling relationship for mass-specific stroke costs, we calculate $P_{out}$ as:
+
+\begin{align}
+P_{out}(U_f) = (f_s(U_f) - f_s(U_c)) \times C_L \times m
+\end{align}
+
+Where $f_s$ is a function relating stroke frequency to swimming speed, $U_f$ and $U_c$ are the swimming speeds during the flight response and cruising, $C_L$ is the mass-specific locomotor cost of a stroke, and $m$ is the animal's mass. Equation (2) assumes, during the flight response, cetaceans increase swimming speed and stroke frequency, but the mass-specific locomotor cost of a stroke remains the same regardless of speed. Although $C_L$ increases with swimming speed, the scaling relationships do not hold for larger cetaceans [@williams_swimming_2017]. To be conservative, we use the $C_L$ scaling relationship for cruising speeds, estimated as $C_L = 1.46 + 0.0005m$ in $J \cdot stroke^{-1} \cdot kg^{-1}$. We chose 1.5 m/s for $U_c$ based on size-invariant scaling of cruising speeds [@sato_katsufumi_stroke_2007]. Assuming cetaceans maintain a Strouhal number of 0.3 and stroke amplitude is one fifth body length, stroking frequency as a function of body length is:
+
+\begin{align}
+S_t &= \frac{Af}{U} \notag\\
+f &= \frac{1.5U}{L}
+\end{align}
+
+## Case studies
+We analyzed tag data from four controlled exposure experiments (CEEs) and applied the $E_{sonar}$ model to estimate energetic costs of observed behavioral responses to sonar exposure [BRS ref?]. As part of an on-going behavioral response study to naval sonar, in 2011-2015 *(???)* Blainville's beaked whales (*Mesoplodon densirostris*), Cuvier's beaked whales (*Ziphius cavirostris*), northern minke whales (*Balaenoptera acutorostrata*), and blue whales (*B. musculus*) were tracked with multi-sensor tags and exposed to mid-frequency active sonar in Southern California. Time displaced from foraging ($t_d$), time in flight ($t_f$), and speed of flight ($U_f$) were selected based on tag data. These values should be considered realistic scenarios, but not the typical or most common response. Behavioral responses to sonar exposure are highly variable and seem to depend on received sound level, distance to source, foraging behavior, and habituation [@southall_behavioral_2019; @wensveen_paul_j._northern_2019].
 
 References {#references .unnumbered}
 ==========
