@@ -65,7 +65,13 @@ Where $E_{sonar}$ is the energy cost of sonar exposure, $P_{in}$ is consumption 
 
 ## Consumption power ($P_{in}$)
 
-The rate of energy intake is the product of feeding rate ($r_f$) and prey energy per feeding event ($E_p$). $r_f$ was calculated as the lunge rate for rorquals and buzz rate for odontocetes using tag sensors. $E_p$ was derived using active acoustics (rorquals) and stomach contents (odontocetes) [ref?].
+The rate of energy intake is the product of feeding rate ($r_f$) and prey energy per feeding event ($E_p$):
+
+\begin{align}
+P_{in} = r_f \times E_p
+\end{align}
+
+$r_f$ was calculated as the lunge rate for rorquals and buzz rate for odontocetes using tag sensors. $E_p$ was derived using active acoustics (rorquals) and stomach contents (odontocetes) [ref?].
 
 ## Flight power ($P_{out}$)
 
@@ -204,13 +210,15 @@ rbind(buzz_rate, lunge_rate) %>%
 
 Prey energy per feeding event was empirically derived from acoustic backscatter (mysticetes) and stomach samples (odontocetes). Filter feeders consumed the most energy per feeding event. Generally, delphinids targeted more energy-rich prey than Ziphids (Fig. \ref{Ep_fig}).
 
+Modeled consumption power covered four orders of magnitude: from 2.4e3 kJ/hr (*P. phocoena*) to 1.4e7 kJ/hr (*B. musculus*) (Fig. \ref{Pin_fig}).
+
 ## Flight power ($P_{out}$)
 
 ## Case studies
 
 Figures
 =======
-```{r fig.cap = "Energy per feeding event. Note log scale on y-axis. \\label{Ep_fig}", fig.height=4.5, fig.pos="H"}
+```{r fig.cap = "Energy per feeding event. Note log scale on y-axis. \\label{Ep_fig}", fig.height=4.5}
 prey_data %>% 
   uncount(weights = Percent) %>% 
   mutate(binomial = fct_relabel(binomial, abbr_binom)) %>% 
@@ -227,6 +235,43 @@ prey_data %>%
                                    face = "italic"),
         legend.title = element_blank(),
         legend.position = "bottom",
+        legend.direction = "horizontal",
+        legend.text = element_text(size = 8))
+```
+
+```{r fig.cap = "Modeled consumption power ($P_{in}$). \\label{Pin_fig}"}
+Ep_tbl <- prey_data %>%
+  uncount(weights = Percent) %>% 
+  group_by(binomial) %>% 
+  summarize(Ep_kJ = mean(`Energy (kJ)`))
+
+rf_tbl <- rorqual_data %>% 
+  filter(duration_h >= 24) %>%
+  group_by(binomial) %>% 
+  summarize(rf_h = round(mean(lunge_h), 1)) %>%
+  rbind(odontocete_data %>%  
+          group_by(binomial) %>% 
+          summarize(rf_h = round(mean(total_buzz_count / total_duration_h, na.rm = TRUE), 1)))
+
+Pin_tbl <- inner_join(Ep_tbl, rf_tbl, by = "binomial") %>% 
+  mutate(Pin_kJ_h = Ep_kJ * rf_h) %>% 
+  left_join(select(morphologies, binomial, Family))
+
+Pin_tbl %>% 
+  mutate(binomial = fct_relabel(binomial, abbr_binom)) %>% 
+  ggplot(aes(binomial, Pin_kJ_h, fill = Family)) +
+  geom_col() +
+  scale_y_log10(name = expression(P[`in`] ~~ (kJ/h)),
+                labels = log_labels) +
+  scale_fill_aaas() +
+  expand_limits(y = 1) +
+  theme_classic(base_size = ) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(hjust = 1,
+                                   angle = 30,
+                                   face = "italic"),
+        legend.position = "bottom",
+        legend.title = element_blank(),
         legend.direction = "horizontal",
         legend.text = element_text(size = 8))
 ```
