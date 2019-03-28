@@ -306,15 +306,24 @@ The cruising speed of swimming animals is invariant with size [@sato_katsufumi_s
 fs_fun <- function(U, L) 1.5 * U / L
 U_b_ms <- 1.5
 
+Pp_grob <- png::readPNG("img/Phocoena-phocoena.png") %>% 
+  grid::rasterGrob(interpolate = TRUE)
+Bm_grob <- png::readPNG("img/Balaenoptera-musculus.png") %>% 
+  grid::rasterGrob(interpolate = TRUE)
+
 morphologies %>% 
   mutate(f_s = fs_fun(U_b_ms, Length_m)) %>% 
-  ggplot(aes(Length_m, f_s)) +
+  ggplot(aes(log10(Length_m), log10(f_s))) +
   geom_line() +
-  expand_limits(x = 1) +
-  scale_x_log10(breaks = c(2, seq(0, 25, by = 5))) +
-  scale_y_log10(breaks = c(0.1, 0.5, 1, 1.5)) +
-  labs(x = "Length (m)",
-       y = "Stroke frequency (Hz)") +
+  geom_point() +
+  annotation_custom(Pp_grob,
+                    xmin = 0.15, xmax = 0.35,
+                    ymin = 0.2, ymax = 0.35) +
+  annotation_custom(Bm_grob,
+                    xmin = 0.95, xmax = 1.3,
+                    ymin = -1.18, ymax = -0.85) +
+  labs(x = expression(log[10] ( "Length" ) * " (m)"),
+       y = expression(log[10] ( "Stroke frequency" ) * " (Hz)")) +
   theme_classic()
 ```
 
