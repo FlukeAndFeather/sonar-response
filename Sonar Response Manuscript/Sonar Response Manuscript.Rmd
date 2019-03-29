@@ -9,6 +9,10 @@ author:
     affiliation: "1"
   - name: Will T Gough
     affiliation: "1"
+  - name: Paolo
+    affiliation: "1"
+  - name: Danuta
+    affiliation: "1"
   - name: Jeremy A Goldbogen
     affiliation: "1"
 address:
@@ -29,6 +33,7 @@ header-includes:
   - \usepackage{lineno}
   - \usepackage{threeparttable}
   - \usepackage{float}
+  - \usepackage{pdflscape}
 ---
 
 \doublespacing
@@ -179,7 +184,7 @@ Results
 ## Consumption power ($P_{in}$)
 Feeding rates were derived from tag data and tended to decrease with body size. Rorqual feeding rates ranged from 10.7 to 44.1 lunges/hour and odontocete feeding rates ranged from 2.5 to 96.8 buzzes/hour (Table \ref{rf_tbl}).
 
-```{r results="asis"}
+```{r rf_tbl}
 # Rorqual lunge rates
 lunge_rate <- rorqual_data %>% 
   filter(duration_h >= 24) %>%
@@ -196,6 +201,22 @@ buzz_rate <- odontocete_data %>%
               mean(na.rm = TRUE) %>% 
               round(digits = 1)) %>% 
   mutate(Group = "Odontocete")
+
+# P_in tibble
+Ep_tbl <- prey_data %>%
+  uncount(weights = Percent) %>% 
+  group_by(binomial) %>% 
+  summarize(Ep_kJ = mean(`Energy (kJ)`))
+rf_tbl <- rorqual_data %>% 
+  filter(duration_h >= 24) %>%
+  group_by(binomial) %>% 
+  summarize(rf_h = round(mean(lunge_h), 1)) %>%
+  rbind(odontocete_data %>%  
+          group_by(binomial) %>% 
+          summarize(rf_h = round(mean(total_buzz_count / total_duration_h, na.rm = TRUE), 1)))
+Pin_tbl <- inner_join(Ep_tbl, rf_tbl, by = "binomial") %>% 
+  mutate(Pin_kJ_h = Ep_kJ * rf_h) %>% 
+  left_join(select(morphologies, binomial, Family))
 
 # Feeding rate table
 rbind(buzz_rate, lunge_rate) %>% 
@@ -217,11 +238,99 @@ Prey energy per feeding event was empirically derived from acoustic backscatter 
 Modeled consumption power covered four orders of magnitude: from 2.4e3 kJ/hr (*P. phocoena*) to 1.4e7 kJ/hr (*B. musculus*) (Fig. \ref{Pin_fig}).
 
 ## Flight power ($P_{out}$)
+```{r Pout}
+fs_fun <- function(U, L) 1.5 * U / L
+U_b_ms <- 1.5
+
+CL_fun <- function(m) 1.46 + 0.0005 * m
+
+Pout_fun <- function(u, l, m) {
+  f_f <- fs_fun(u, l)
+  f_b <- fs_fun(U_b_ms, l)
+  (f_f - f_b) * CL_fun(m) * m
+}
+```
 Predicted stroke frequencies at cruising speed decreased with length, from 1.8 Hz for a 1.22 m *P. phocoena* to 0.09 for a 25 m *B. musculus* (Fig. \ref{fs_fig}).
 
-Across body sizes, $P_{out}$ increased steeply with flight speed until an inflection point at approximately 1.8 m/s (Fig. \ref{Pout_fig}). 
+Across body sizes, $P_{out}$ increased linearly with flight speed (Fig. \ref{Pout_fig}). 
 
 ## Case studies
+
+We modeled the energetic consequence of sonar exposure for four observed behavioral responses. The beaked whale (*M. densirostris* and *Z. cavirostris*) responses were more severe than the rorquals' (*B. bonaerensis* and *B. musculus*) but the mass-specific energetic costs and $E_{sonar}:BMR$ ratio were greater for rorquals (Table \ref{esonar_tbl}).
+
+```{r esonar_tbl}
+ratio_lbl <- function(x) {
+  x <- signif(x, 3)
+  case_when(x < 1 ~ sprintf("%.3f", x),
+            x < 10 ~ sprintf("%.2f", x),
+            x < 100 ~ sprintf("%.1f", x),
+            TRUE ~ sprintf("%.0f", x))
+}
+
+esonar_tbl <- tibble(binomial = factor(c("Mesoplodon densirostris",
+                                         "Ziphius cavirostris",
+                                         "Balaenoptera bonaerensis",
+                                         "Balaenoptera musculus"),
+                                       levels = binom_levels),
+                       t_d_min = c(6*60,
+                                   6*60,
+                                   2.5*60,
+                                   60),
+                       t_f_min = c(30,
+                                   30,
+                                   60,
+                                   5),
+                       U_f_ms = c(4.5,
+                                  4.5,
+                                  3.5,
+                                  2.5),
+                       Reference = c("DeRuiter et al. 2013 Fig 1.",
+                                     "DeRuiter et al. 2013 Fig 1.",
+                                     "Kvadsheim et al. 2017 Fig 2.",
+                                     "Southall et al. 2019 bw11\\_219b")) %>% 
+  left_join(select(morphologies,
+                   binomial,
+                   Mass_kg,
+                   Length_m),
+            by = "binomial") %>%
+  # P_in
+  left_join(Pin_tbl, by = "binomial") %>%
+  # P_out
+  mutate(f_f = fs_fun(U_f_ms, Length_m),
+         f_b = fs_fun(U_b_ms, Length_m),
+         C_L = CL_fun(Mass_kg),
+         Pout_W = Pout_fun(U_f_ms, Length_m, Mass_kg)) %>% 
+  # E_sonar
+  # The units are a little wonky. Intake is in units of kJ/hour and output
+  # is in J/s (W).
+  mutate(E_in_kJ = Pin_kJ_h * t_d_min / 60,
+         E_out_kJ = Pout_W / 1000 * t_f_min * 60,
+         E_sonar_kJ = E_in_kJ + E_out_kJ,
+         BMR_kJ_day = 293.1 * Mass_kg ^ 0.75,
+         E_BMR = E_sonar_kJ / BMR_kJ_day,
+         E_m = E_sonar_kJ / Mass_kg)
+
+esonar_tbl %>% 
+  transmute(Species = abbr_binom(binomial),
+            `$t_d \\text{ (min)}$` = t_d_min,
+            `$t_f \\text{ (min)}$` = t_f_min,
+            `$U_f \\text{ (m/s)}$` = U_f_ms,
+            `$E_{out} ~~ (kJ)$` = signif(E_out_kJ, 3),
+            `$E_{in} ~~ (kJ)$` = signif(E_in_kJ, 3),
+            `$E_{sonar} ~~ (kJ)$` = signif(E_sonar_kJ, 3),
+            `$E_{sonar} ~~ (kJ ~~ kg^{-1})$` = signif(E_m, 3),
+            `$E_{sonar}:BMR_d$` = ratio_lbl(E_BMR)) %>% 
+  kable("latex", 
+        booktabs = TRUE, 
+        escape = FALSE,
+        caption = "Behavioral responses to sonar and estimated energetic consequences of exposure. \\label{esonar_tbl}",
+        linesep = "") %>% 
+  add_header_above(c("", "Behavioral responses" = 3, "Energetic consequences" = 5)) %>% 
+  footnote(general = "$t_d$ is the time displaced from foraging and $t_f$ is the time fleeing the sonar source at the elevated speed, $U_f$. $E_{out}$ and $E_{in}$ are the energetic costs of increased locomotion and lost feeding, respectively. $E_{sonar}$ is presented as a total cost, as a mass-specific cost, and as a ratio to daily basal metabolic requirements.",
+           escape = FALSE,
+           threeparttable = TRUE) %>% 
+  landscape()
+```
 
 Figures
 =======
@@ -247,23 +356,6 @@ prey_data %>%
 ```
 
 ```{r Pin_fig, fig.cap = "Modeled consumption power ($P_{in}$). \\label{Pin_fig}"}
-Ep_tbl <- prey_data %>%
-  uncount(weights = Percent) %>% 
-  group_by(binomial) %>% 
-  summarize(Ep_kJ = mean(`Energy (kJ)`))
-
-rf_tbl <- rorqual_data %>% 
-  filter(duration_h >= 24) %>%
-  group_by(binomial) %>% 
-  summarize(rf_h = round(mean(lunge_h), 1)) %>%
-  rbind(odontocete_data %>%  
-          group_by(binomial) %>% 
-          summarize(rf_h = round(mean(total_buzz_count / total_duration_h, na.rm = TRUE), 1)))
-
-Pin_tbl <- inner_join(Ep_tbl, rf_tbl, by = "binomial") %>% 
-  mutate(Pin_kJ_h = Ep_kJ * rf_h) %>% 
-  left_join(select(morphologies, binomial, Family))
-
 Pin_tbl %>% 
   mutate(binomial = fct_relabel(binomial, abbr_binom)) %>% 
   ggplot(aes(binomial, log10(Pin_kJ_h), fill = Family)) +
@@ -282,9 +374,6 @@ Pin_tbl %>%
 ```
 
 ```{r fs_fig, fig.cap = "Predicted cruising speed stroke frequencies ($f_s$). \\label{fs_fig}"}
-fs_fun <- function(U, L) 1.5 * U / L
-U_b_ms <- 1.5
-
 Pp_grob <- png::readPNG("../img/Phocoena-phocoena.png") %>% 
   grid::rasterGrob(interpolate = TRUE)
 Bm_grob <- png::readPNG("../img/Balaenoptera-musculus.png") %>% 
@@ -306,18 +395,10 @@ morphologies %>%
   theme_classic()
 ```
 
-```{r Pout_fig, fig.cap = "Flight power ($P_{out}$) by flight speed for \\textit{B. musculus} (blue) and \\textit{Z. cavistrostris} (red). \\label{Pout_fig}"}
-CL_fun <- function(m) 1.46 + 0.0005 * m
-
-Pout_fun <- function(u, l, m) {
-  f_f <- fs_fun(u, l)
-  f_b <- fs_fun(U_b_ms, l)
-  (f_f - f_b) * CL_fun(m) * m
-}
-
+```{r Pout_fig, fig.cap = "Flight power ($P_{out}$) by flight speed for \\textit{B. musculus} (blue) and \\textit{Z. cavistrostris} (red). Note log scale on y-axis. \\label{Pout_fig}"}
 crossing(binomial = c("Ziphius cavirostris",
                       "Balaenoptera musculus"),
-         speed = seq(1.51, 5, length.out = 100)) %>% 
+         speed = seq(1.51, 5, length.out = 100)) %>%
   left_join(morphologies, by = "binomial") %>%
   mutate(P_out = Pout_fun(speed, Length_m, Mass_kg)) %>% 
   ggplot(aes(x = speed, y = log10(P_out), color = binomial)) +

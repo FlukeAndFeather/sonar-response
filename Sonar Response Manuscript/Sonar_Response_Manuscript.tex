@@ -69,6 +69,7 @@
 \usepackage{lineno}
 \usepackage{threeparttable}
 \usepackage{float}
+\usepackage{pdflscape}
 
 
 
@@ -264,6 +265,19 @@ seem to depend on received sound level, distance to source, foraging
 behavior, and habituation (Southall et al., 2019; Wensveen et al.,
 2019).
 
+\subsection{Cross-species comparisons}\label{cross-species-comparisons}
+
+To facilitate comparisons of energetic consequences across body size, we
+present \(E_{sonar}\) as 1) the energy cost (\(kJ\)), 2) the
+mass-specific energy cost (\(kJ ~~ kg^{-1}\)), and 3) the ratio of
+energy cost to daily basal metabolic requirements (\(E_{sonar}:BMR\)).
+Kleiber's equation for mammals predicts basal metabolic rate as:
+\(BMR = 293.1 m^{0.75} ~~ (kJ/day)\) (Kleiber, 1975). Given the
+uncertainty in BMR estimates for large cetaceans and the differences
+between basal and active metabolic rates, \(E_{sonar}:BMR\) should be
+interpreted as an index of energetic consequence and not an absolute
+measure of impact.
+
 \section{Results}\label{results}
 
 \subsection{\texorpdfstring{Consumption power
@@ -276,7 +290,7 @@ and odontocete feeding rates ranged from 2.5 to 96.8 buzzes/hour (Table
 
 \begin{table}[t]
 
-\caption{\label{tab:unnamed-chunk-1}Cetacean feeding rates \label{rf_tbl}}
+\caption{\label{tab:rf_tbl}Cetacean feeding rates \label{rf_tbl}}
 \centering
 \begin{threeparttable}
 \begin{tabular}{llrr}
@@ -323,10 +337,42 @@ Predicted stroke frequencies at cruising speed decreased with length,
 from 1.8 Hz for a 1.22 m \emph{P. phocoena} to 0.09 for a 25 m \emph{B.
 musculus} (Fig. \ref{fs_fig}).
 
-Across body sizes, \(P_{out}\) increased steeply with flight speed until
-an inflection point at approximately 1.8 m/s (Fig. \ref{Pout_fig}).
+Across body sizes, \(P_{out}\) increased linearly with flight speed
+(Fig. \ref{Pout_fig}).
 
 \subsection{Case studies}\label{case-studies-1}
+
+We modeled the energetic consequence of sonar exposure for four observed
+behavioral responses. The beaked whale (\emph{M. densirostris} and
+\emph{Z. cavirostris}) responses were more severe than the rorquals'
+(\emph{B. bonaerensis} and \emph{B. musculus}) but the mass-specific
+energetic costs and \(E_{sonar}:BMR\) ratio were greater for rorquals
+(Table \ref{esonar_tbl}).
+
+\begin{landscape}\begin{table}[t]
+
+\caption{\label{tab:esonar_tbl}Behavioral responses to sonar and estimated energetic consequences of exposure. \label{esonar_tbl}}
+\centering
+\begin{threeparttable}
+\begin{tabular}{lrrrrrrrl}
+\toprule
+\multicolumn{1}{c}{} & \multicolumn{3}{c}{Behavioral responses} & \multicolumn{5}{c}{Energetic consequences} \\
+\cmidrule(l{3pt}r{3pt}){2-4} \cmidrule(l{3pt}r{3pt}){5-9}
+Species & $t_d \text{ (min)}$ & $t_f \text{ (min)}$ & $U_f \text{ (m/s)}$ & $E_{out} ~~ (kJ)$ & $E_{in} ~~ (kJ)$ & $E_{sonar} ~~ (kJ)$ & $E_{sonar} ~~ (kJ ~~ kg^{-1})$ & $E_{sonar}:BMR_d$\\
+\midrule
+M. densirostris & 360 & 30 & 4.5 & 3210 & 20500 & 23700 & 27.5 & 0.509\\
+Z. cavirostris & 360 & 30 & 4.5 & 10400 & 46700 & 57000 & 19.7 & 0.492\\
+B. bonaerensis & 150 & 60 & 3.5 & 44600 & 949000 & 994000 & 148.0 & 4.58\\
+B. musculus & 60 & 5 & 2.5 & 79600 & 14200000 & 14300000 & 153.0 & 9.14\\
+\bottomrule
+\end{tabular}
+\begin{tablenotes}
+\item \textit{Note: } 
+\item $t_d$ is the time displaced from foraging and $t_f$ is the time fleeing the sonar source at the elevated speed, $U_f$. $E_{out}$ and $E_{in}$ are the energetic costs of increased locomotion and lost feeding, respectively. $E_{sonar}$ is presented as a total cost, as a mass-specific cost, and as a ratio to daily basal metabolic requirements.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}
+\end{landscape}
 
 \section{Figures}\label{figures}
 
@@ -346,7 +392,7 @@ an inflection point at approximately 1.8 m/s (Fig. \ref{Pout_fig}).
 \begin{figure}
 \centering
 \includegraphics{Sonar_Response_Manuscript_files/figure-latex/fs_fig-1.pdf}
-\caption{Predicted stroke frequency (\(f_s\)) at crusing speed.
+\caption{Predicted cruising speed stroke frequencies (\(f_s\)).
 \label{fs_fig}}
 \end{figure}
 
@@ -354,8 +400,8 @@ an inflection point at approximately 1.8 m/s (Fig. \ref{Pout_fig}).
 \centering
 \includegraphics{Sonar_Response_Manuscript_files/figure-latex/Pout_fig-1.pdf}
 \caption{Flight power (\(P_{out}\)) by flight speed for
-\textit{B. musculus} (blue) and \textit{Z. cavistrostris} (red).
-\label{Pout_fig}}
+\textit{B. musculus} (blue) and \textit{Z. cavistrostris} (red). Note
+log scale on y-axis. \label{Pout_fig}}
 \end{figure}
 
 \section*{References}\label{references}
@@ -431,6 +477,10 @@ N., 2007. Stroke frequency, but not swimming speed, is related to body
 size in free-ranging seabirds, pinnipeds and cetaceans. Proceedings of
 the Royal Society B: Biological Sciences 274, 471--477.
 \url{https://doi.org/10.1098/rspb.2006.0005}
+
+\hypertarget{ref-kleiber_fire_1975}{}
+Kleiber, M., 1975. The fire of life: An introduction to animal
+energetics. Robert E. Krieger, Huntington.
 
 \hypertarget{ref-kvadsheim_avoidance_2017}{}
 Kvadsheim, P.H., DeRuiter, S., Sivle, L.D., Goldbogen, J.,
