@@ -335,14 +335,14 @@ esonar_tbl %>%
 Figures
 =======
 ```{r Ep_fig, fig.cap = "Energy per feeding event. Note log scale on y-axis. \\label{Ep_fig}", fig.height=4.5}
-prey_data %>% 
+Ep_fig <- prey_data %>% 
   uncount(weights = Percent) %>% 
   mutate(binomial = fct_relabel(binomial, abbr_binom)) %>% 
   ggplot(aes(binomial, `Energy (kJ)`, color = Family)) +
   geom_boxplot() +
-  scale_y_log10(name = "Energy per feeding event (kJ)",
-                labels = log_labels) +
+  scale_y_log10(labels = log_labels) +
   scale_color_aaas() +
+  labs(y = "Energy per feeding event (kJ)") +
   expand_limits(y = 1) +
   theme_classic(base_size = 12) +
   theme(axis.title.x = element_blank(),
@@ -353,16 +353,60 @@ prey_data %>%
         legend.position = "bottom",
         legend.direction = "horizontal",
         legend.text = element_text(size = 8))
+
+# Save a version for presentations
+Ep_fig_big <- Ep_fig +
+  labs(y = expression(E[p] ~~ (kJ))) +
+  theme_classic(base_size = 18) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(hjust = 1,
+                                   angle = 30,
+                                   face = "italic"),
+        legend.title = element_blank(),
+        legend.position = "bottom",
+        legend.direction = "horizontal",
+        legend.text = element_text(size = 14))
+ggsave("Presentation_figs/Ep_fig.pdf", Ep_fig_big, width = 9.5, height = 4.76)
+
+Ep_fig
+```
+
+```{r rf_fig}
+# For presentations only
+rf_fig <- rorqual_data %>% 
+  filter(duration_h >= 24) %>%
+  transmute(binomial,
+            Group = "Rorqual",
+            rf_h = lunge_h) %>%
+  rbind(odontocete_data %>%  
+          transmute(binomial,
+                    Group = "Odontocete",
+                    rf_h = total_buzz_count / total_duration_h)) %>% 
+  mutate(binomial = fct_relabel(binomial, abbr_binom)) %>% 
+  ggplot(aes(binomial, rf_h, color = Group)) +
+  geom_boxplot() + 
+  scale_color_aaas() +
+  labs(y = expression(r[f] * " (per hour)")) +
+  theme_classic(base_size = 18) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(hjust = 1,
+                                   angle = 30,
+                                   face = "italic"),
+        legend.title = element_blank(),
+        legend.position = c(0.75, 0.75),
+        legend.direction = "vertical",
+        legend.text = element_text(size = 14))
+ggsave("Presentation_figs/rf_fig.pdf", rf_fig, width = 9.5, height = 4.76)
 ```
 
 ```{r Pin_fig, fig.cap = "Modeled consumption power ($P_{in}$). \\label{Pin_fig}"}
-Pin_tbl %>% 
+Pin_fig <- Pin_tbl %>% 
   mutate(binomial = fct_relabel(binomial, abbr_binom)) %>% 
   ggplot(aes(binomial, log10(Pin_kJ_h), fill = Family)) +
   geom_col() +
   scale_fill_aaas() +
   labs(y = expression(log[10] ( P[`in`] ) * " (kJ/h)")) +
-  theme_classic(base_size = ) +
+  theme_classic(base_size = 12) +
   theme(axis.title.x = element_blank(),
         axis.text.x = element_text(hjust = 1,
                                    angle = 30,
@@ -371,6 +415,20 @@ Pin_tbl %>%
         legend.title = element_blank(),
         legend.direction = "horizontal",
         legend.text = element_text(size = 8))
+
+Pin_fig_big <- Pin_fig +
+  theme_classic(base_size = 18) +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(hjust = 1,
+                                   angle = 30,
+                                   face = "italic"),
+        legend.position = "bottom",
+        legend.title = element_blank(),
+        legend.direction = "horizontal",
+        legend.text = element_text(size = 14))
+ggsave("Presentation_figs/Pin_fig.pdf", Pin_fig, width = 9.5, height = 4.76)
+
+Pin_fig 
 ```
 
 ```{r fs_fig, fig.cap = "Predicted cruising speed stroke frequencies ($f_s$). \\label{fs_fig}"}
@@ -408,6 +466,44 @@ crossing(binomial = c("Ziphius cavirostris",
        y = expression(log[10] ( P[out]  ) * " (kJ/hr)")) +
   theme_classic() +
   theme(legend.position = "none")
+```
+
+```{r Esonar_fig}
+# For presentations only
+# Mass-specific
+esonar_fig1 <- esonar_tbl %>% 
+  mutate(binomial = fct_relabel(binomial, abbr_binom),
+         E_in_kJ2 = E_in_kJ / Mass_kg,
+         E_out_kJ2 = E_out_kJ / Mass_kg) %>% 
+  gather(direction, energy, E_in_kJ2:E_out_kJ2) %>% 
+  ggplot(aes(binomial, energy, fill = direction)) +
+  geom_col() +
+  scale_fill_aaas(labels = expression(E[`in`], E[out])) +
+  labs(y = expression("Mass-specific " * E[sonar] ~~ (kJ ~~ kg^-1))) +
+  theme_classic(base_size = 18) +
+  theme(legend.position = c(0.15, 0.8),
+        legend.title = element_blank(),
+        legend.text = element_text(hjust = 0, margin = margin(0, 0, 0, 5)),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(face = "italic"))
+
+# BMR ratio
+esonar_fig2 <- esonar_tbl %>% 
+  mutate(binomial = fct_relabel(binomial, abbr_binom)) %>% 
+  ggplot(aes(binomial, E_BMR)) +
+  geom_col() +
+  scale_y_continuous(limits = c(0, 10),
+                     breaks = seq(0, 10, by = 2.5)) +
+  labs(y = expression(E[sonar] : BMR)) +
+  theme_classic(base_size = 18) +
+  theme(legend.position = c(0.15, 0.8),
+        legend.title = element_blank(),
+        legend.text = element_text(hjust = 0, margin = margin(0, 0, 0, 5)),
+        axis.title.x = element_blank(),
+        axis.text.x = element_text(face = "italic"))
+
+esonar_fig <- ggpubr::ggarrange(esonar_fig1, esonar_fig2, ncol = 2)
+ggsave("Presentation_figs/Esonar_fig.pdf", esonar_fig, width = 13, height = 4.76)
 ```
 
 References {#references .unnumbered}
