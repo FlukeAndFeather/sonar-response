@@ -52,7 +52,7 @@ knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
 ```
 
 ```{r load_analysis}
-# Analysis data and functions in separate file
+# Analysis data and functions in separate script
 source("src/sonar-response.R")
 ```
 
