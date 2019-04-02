@@ -118,7 +118,7 @@ Results
 ## Consumption power ($P_{in}$)
 Feeding rates were derived from tag data and tended to decrease with body size. Rorqual feeding rates ranged from 10.7 to 44.1 lunges/hour and odontocete feeding rates ranged from 2.5 to 96.8 buzzes/hour (Table \ref{rf_tbl}).
 
-```{r}
+```{r rf_tbl}
 # Feeding rate table
 rf_tbl %>% 
   mutate(Species = sprintf("\\textit{%s}", binomial)) %>%
@@ -139,18 +139,6 @@ Prey energy per feeding event was empirically derived from acoustic backscatter 
 Modeled consumption power covered four orders of magnitude: from 2.4e3 kJ/hr (*P. phocoena*) to 1.4e7 kJ/hr (*B. musculus*) (Fig. \ref{Pin_fig}).
 
 ## Flight power ($P_{out}$)
-```{r Pout}
-fs_fun <- function(U, L) 1.5 * U / L
-U_b_ms <- 1.5
-
-CL_fun <- function(m) 1.46 + 0.0005 * m
-
-Pout_fun <- function(u, l, m) {
-  f_f <- fs_fun(u, l)
-  f_b <- fs_fun(U_b_ms, l)
-  (f_f - f_b) * CL_fun(m) * m
-}
-```
 Predicted stroke frequencies at cruising speed decreased with length, from 1.8 Hz for a 1.22 m *P. phocoena* to 0.09 for a 25 m *B. musculus* (Fig. \ref{fs_fig}).
 
 Across body sizes, $P_{out}$ increased linearly with flight speed (Fig. \ref{Pout_fig}). 
@@ -160,6 +148,7 @@ Across body sizes, $P_{out}$ increased linearly with flight speed (Fig. \ref{Pou
 We modeled the energetic consequence of sonar exposure for four observed behavioral responses. The beaked whale (*M. densirostris* and *Z. cavirostris*) responses were more severe than the rorquals' (*B. bonaerensis* and *B. musculus*) but the mass-specific energetic costs and $E_{sonar}:BMR$ ratio were greater for rorquals (Table \ref{esonar_tbl}).
 
 ```{r esonar_tbl}
+# Cleans up ratios to have the same number of total digits
 ratio_lbl <- function(x) {
   x <- signif(x, 3)
   case_when(x < 1 ~ sprintf("%.3f", x),
@@ -167,49 +156,6 @@ ratio_lbl <- function(x) {
             x < 100 ~ sprintf("%.1f", x),
             TRUE ~ sprintf("%.0f", x))
 }
-
-esonar_tbl <- tibble(binomial = factor(c("Mesoplodon densirostris",
-                                         "Ziphius cavirostris",
-                                         "Balaenoptera bonaerensis",
-                                         "Balaenoptera musculus"),
-                                       levels = binom_levels),
-                       t_d_min = c(6*60,
-                                   6*60,
-                                   2.5*60,
-                                   60),
-                       t_f_min = c(30,
-                                   30,
-                                   60,
-                                   5),
-                       U_f_ms = c(4.5,
-                                  4.5,
-                                  3.5,
-                                  2.5),
-                       Reference = c("DeRuiter et al. 2013 Fig 1.",
-                                     "DeRuiter et al. 2013 Fig 1.",
-                                     "Kvadsheim et al. 2017 Fig 2.",
-                                     "Southall et al. 2019 bw11\\_219b")) %>% 
-  left_join(select(morphologies,
-                   binomial,
-                   Mass_kg,
-                   Length_m),
-            by = "binomial") %>%
-  # P_in
-  left_join(Pin_tbl, by = "binomial") %>%
-  # P_out
-  mutate(f_f = fs_fun(U_f_ms, Length_m),
-         f_b = fs_fun(U_b_ms, Length_m),
-         C_L = CL_fun(Mass_kg),
-         Pout_W = Pout_fun(U_f_ms, Length_m, Mass_kg)) %>% 
-  # E_sonar
-  # The units are a little wonky. Intake is in units of kJ/hour and output
-  # is in J/s (W).
-  mutate(E_in_kJ = Pin_kJ_h * t_d_min / 60,
-         E_out_kJ = Pout_W / 1000 * t_f_min * 60,
-         E_sonar_kJ = E_in_kJ + E_out_kJ,
-         BMR_kJ_day = 293.1 * Mass_kg ^ 0.75,
-         E_BMR = E_sonar_kJ / BMR_kJ_day,
-         E_m = E_sonar_kJ / Mass_kg)
 
 esonar_tbl %>% 
   transmute(Species = abbr_binom(binomial),
@@ -236,7 +182,7 @@ esonar_tbl %>%
 Figures
 =======
 ```{r Ep_fig, fig.cap = "Energy per feeding event. Note log scale on y-axis. \\label{Ep_fig}", fig.height=4.5}
-Ep_fig <- prey_data %>% 
+prey_data %>% 
   uncount(weights = Percent) %>% 
   mutate(binomial = fct_relabel(binomial, abbr_binom)) %>% 
   ggplot(aes(binomial, `Energy (kJ)`, color = Family)) +
@@ -254,54 +200,10 @@ Ep_fig <- prey_data %>%
         legend.position = "bottom",
         legend.direction = "horizontal",
         legend.text = element_text(size = 8))
-
-# Save a version for presentations
-Ep_fig_big <- Ep_fig +
-  labs(y = expression(E[p] ~~ (kJ))) +
-  theme_classic(base_size = 18) +
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(hjust = 1,
-                                   angle = 30,
-                                   face = "italic"),
-        legend.title = element_blank(),
-        legend.position = "bottom",
-        legend.direction = "horizontal",
-        legend.text = element_text(size = 14))
-ggsave("presentation_figs/Ep_fig.pdf", Ep_fig_big, width = 9.5, height = 4.76)
-
-Ep_fig
-```
-
-```{r rf_fig}
-# For presentations only
-rf_fig <- rorqual_data %>% 
-  filter(duration_h >= 24) %>%
-  transmute(binomial,
-            Group = "Rorqual",
-            rf_h = lunge_h) %>%
-  rbind(odontocete_data %>%  
-          transmute(binomial,
-                    Group = "Odontocete",
-                    rf_h = total_buzz_count / total_duration_h)) %>% 
-  mutate(binomial = fct_relabel(binomial, abbr_binom)) %>% 
-  ggplot(aes(binomial, rf_h, color = Group)) +
-  geom_boxplot() + 
-  scale_color_aaas() +
-  labs(y = expression(r[f] * " (per hour)")) +
-  theme_classic(base_size = 18) +
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(hjust = 1,
-                                   angle = 30,
-                                   face = "italic"),
-        legend.title = element_blank(),
-        legend.position = c(0.75, 0.75),
-        legend.direction = "vertical",
-        legend.text = element_text(size = 14))
-ggsave("presentation_figs/rf_fig.pdf", rf_fig, width = 9.5, height = 4.76)
 ```
 
 ```{r Pin_fig, fig.cap = "Modeled consumption power ($P_{in}$). \\label{Pin_fig}"}
-Pin_fig <- Pin_tbl %>% 
+Pin_tbl %>% 
   mutate(binomial = fct_relabel(binomial, abbr_binom)) %>% 
   ggplot(aes(binomial, log10(Pin_kJ_h), fill = Family)) +
   geom_col() +
@@ -316,20 +218,6 @@ Pin_fig <- Pin_tbl %>%
         legend.title = element_blank(),
         legend.direction = "horizontal",
         legend.text = element_text(size = 8))
-
-Pin_fig_big <- Pin_fig +
-  theme_classic(base_size = 18) +
-  theme(axis.title.x = element_blank(),
-        axis.text.x = element_text(hjust = 1,
-                                   angle = 30,
-                                   face = "italic"),
-        legend.position = "bottom",
-        legend.title = element_blank(),
-        legend.direction = "horizontal",
-        legend.text = element_text(size = 14))
-ggsave("presentation_figs/Pin_fig.pdf", Pin_fig, width = 9.5, height = 4.76)
-
-Pin_fig 
 ```
 
 ```{r fs_fig, fig.cap = "Predicted cruising speed stroke frequencies ($f_s$). \\label{fs_fig}"}
@@ -367,44 +255,6 @@ crossing(binomial = c("Ziphius cavirostris",
        y = expression(log[10] ( P[out]  ) * " (kJ/hr)")) +
   theme_classic() +
   theme(legend.position = "none")
-```
-
-```{r Esonar_fig}
-# For presentations only
-# Mass-specific
-esonar_fig1 <- esonar_tbl %>% 
-  mutate(binomial = fct_relabel(binomial, abbr_binom),
-         E_in_kJ2 = E_in_kJ / Mass_kg,
-         E_out_kJ2 = E_out_kJ / Mass_kg) %>% 
-  gather(direction, energy, E_in_kJ2:E_out_kJ2) %>% 
-  ggplot(aes(binomial, energy, fill = direction)) +
-  geom_col() +
-  scale_fill_aaas(labels = expression(E[`in`], E[out])) +
-  labs(y = expression("Mass-specific " * E[sonar] ~~ (kJ ~~ kg^-1))) +
-  theme_classic(base_size = 18) +
-  theme(legend.position = c(0.15, 0.8),
-        legend.title = element_blank(),
-        legend.text = element_text(hjust = 0, margin = margin(0, 0, 0, 5)),
-        axis.title.x = element_blank(),
-        axis.text.x = element_text(face = "italic"))
-
-# BMR ratio
-esonar_fig2 <- esonar_tbl %>% 
-  mutate(binomial = fct_relabel(binomial, abbr_binom)) %>% 
-  ggplot(aes(binomial, E_BMR)) +
-  geom_col() +
-  scale_y_continuous(limits = c(0, 10),
-                     breaks = seq(0, 10, by = 2.5)) +
-  labs(y = expression(E[sonar] : BMR)) +
-  theme_classic(base_size = 18) +
-  theme(legend.position = c(0.15, 0.8),
-        legend.title = element_blank(),
-        legend.text = element_text(hjust = 0, margin = margin(0, 0, 0, 5)),
-        axis.title.x = element_blank(),
-        axis.text.x = element_text(face = "italic"))
-
-esonar_fig <- ggpubr::ggarrange(esonar_fig1, esonar_fig2, ncol = 2)
-ggsave("presentation_figs/Esonar_fig.pdf", esonar_fig, width = 13, height = 4.76)
 ```
 
 References {#references .unnumbered}

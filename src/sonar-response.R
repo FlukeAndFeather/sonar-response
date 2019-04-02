@@ -109,3 +109,60 @@ Pin_tbl <- inner_join(Ep_tbl, rf_tbl, by = "binomial") %>%
   mutate(Pin_kJ_h = Ep_kJ * rf_h) %>% 
   left_join(select(morphologies, binomial, Family), by = "binomial")
 
+# Locomotion power (Pout) -----------------------------------------------------
+fs_fun <- function(U, L) 1.5 * U / L
+U_b_ms <- 1.5
+
+CL_fun <- function(m) 1.46 + 0.0005 * m
+
+Pout_fun <- function(u, l, m) {
+  f_f <- fs_fun(u, l)
+  f_b <- fs_fun(U_b_ms, l)
+  (f_f - f_b) * CL_fun(m) * m
+}
+
+# Case studies ----------------------------------------------------------------
+cases_tbl <- tibble(binomial = factor(c("Mesoplodon densirostris",
+                                        "Ziphius cavirostris",
+                                        "Balaenoptera bonaerensis",
+                                        "Balaenoptera musculus"),
+                                      levels = binom_levels),
+                    t_d_min = c(6*60,
+                                6*60,
+                                2.5*60,
+                                60),
+                    t_f_min = c(30,
+                                30,
+                                60,
+                                5),
+                    U_f_ms = c(4.5,
+                               4.5,
+                               3.5,
+                               2.5),
+                    Reference = c("DeRuiter et al. 2013 Fig 1.",
+                                  "DeRuiter et al. 2013 Fig 1.",
+                                  "Kvadsheim et al. 2017 Fig 2.",
+                                  "Southall et al. 2019 bw11\\_219b"))
+
+esonar_tbl <- cases_tbl %>% 
+  left_join(select(morphologies,
+                   binomial,
+                   Mass_kg,
+                   Length_m),
+            by = "binomial") %>%
+  # P_in
+  left_join(Pin_tbl, by = "binomial") %>%
+  # P_out
+  mutate(f_f = fs_fun(U_f_ms, Length_m),
+         f_b = fs_fun(U_b_ms, Length_m),
+         C_L = CL_fun(Mass_kg),
+         Pout_W = Pout_fun(U_f_ms, Length_m, Mass_kg)) %>% 
+  # E_sonar
+  # The units are a little wonky. Intake is in units of kJ/hour and output
+  # is in J/s (W).
+  mutate(E_in_kJ = Pin_kJ_h * t_d_min / 60,
+         E_out_kJ = Pout_W / 1000 * t_f_min * 60,
+         E_sonar_kJ = E_in_kJ + E_out_kJ,
+         BMR_kJ_day = 293.1 * Mass_kg ^ 0.75,
+         E_BMR = E_sonar_kJ / BMR_kJ_day,
+         E_m = E_sonar_kJ / Mass_kg)
