@@ -44,6 +44,18 @@ knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE,
                       fig.height = 3, fig.width = 5)
 ```
 
+```{r setup}
+library(knitr)
+library(kableExtra)
+# Set root directory to project root
+knitr::opts_knit$set(root.dir = rprojroot::find_rstudio_root_file())
+```
+
+```{r load_analysis}
+# Analysis data and functions in separate file
+source("src/sonar-response.R")
+```
+
 Introduction
 ============
 
@@ -100,128 +112,17 @@ We analyzed tag data from four controlled exposure experiments (CEEs) and applie
 
 To facilitate comparisons of energetic consequences across body size, we present $E_{sonar}$ as 1) the energy cost ($kJ$), 2) the mass-specific energy cost ($kJ ~~ kg^{-1}$), and 3) the ratio of energy cost to daily basal metabolic requirements ($E_{sonar}:BMR$). Kleiber's equation for mammals predicts basal metabolic rate as: $BMR = 293.1 m^{0.75} ~~ (kJ/day)$ [@kleiber_fire_1975]. Given the uncertainty in BMR estimates for large cetaceans and the differences between basal and active metabolic rates, $E_{sonar}:BMR$ should be interpreted as an index of energetic consequence and not an absolute measure of impact.
 
-```{r setup}
-library(tidyverse)
-library(scales)
-library(knitr)
-library(kableExtra)
-library(lmodel2)
-library(ggsci)
-
-# Load data
-# Morphological data
-abbr_binom = function(binom) {
-  paste(str_sub(binom, 1, 1), 
-        str_extract(binom, " .*"), 
-        sep = ".")
-}
-morphologies <- read_csv("../data/foragestats_combined_ko2.csv") %>% 
-  mutate(Species = str_replace(Species, "_", " ")) %>% 
-  group_by(Species) %>% 
-  summarize(Length_m = first(Body_length_m),
-            Mass_kg = first(Body_mass_kg)) %>% 
-  mutate(Clade = ifelse(str_detect(Species, ".*ptera.*"),
-                        "Mysticete",
-                        "Odontocete"),
-         Family = recode(Species,
-                         `Balaenoptera bonaerensis` = "Balaenopteridae",
-                         `Balaenoptera musculus` = "Balaenopteridae",
-                         `Balaenoptera physalus` = "Balaenopteridae",
-                         `Berardius bairdii` = "Ziphiidae",
-                         `Globicephala macrorhynchus` = "Delphinidae",
-                         `Globicephala melas` = "Delphinidae",
-                         `Grampus griseus` = "Delphinidae",
-                         `Megaptera novaeangliae` = "Balaenopteridae",
-                         `Mesoplodon densirostris` = "Ziphiidae",
-                         `Orcinus orca` = "Delphinidae",
-                         `Phocoena phocoena` = "Phocoenidae",
-                         `Physeter macrocephalus` = "Physeteridae",
-                         `Ziphius cavirostris` = "Ziphiidae")) %>% 
-  # binomial is a factor ordered by species length with an abbreviated label
-  arrange(Length_m) %>% 
-  mutate(binomial = factor(Species, 
-                           levels = unique(Species)))
-binom_levels <- levels(morphologies$binomial)
-
-# Prey data
-prey_data <- read_csv("../data/Cetacea model output BOUT_EXTANT_v2.csv") %>% 
-  select(-(X13:X25)) %>% 
-  mutate(Species = recode(Species,
-                          bonarensis = "bonaerensis",
-                          Phocaena = "phocoena"),
-         Genus = recode(Genus,
-                        Physter = "Physeter",
-                        Phocoaena = "Phocoena"),
-         binomial = factor(paste(Genus, Species),
-                           levels = binom_levels)) %>% 
-  filter(`MR exponent` == 0.45)  # data duplicated for multiple MR exponent values
-
-# Rorqual feeding rates
-rorqual_data <- read_csv("../data/lunge_rates_from_Paolo.csv") %>%
-  filter(species != "be") %>% 
-  mutate(duration_h = `deployment-time_secs` / 60 / 60,
-         binomial = factor(recode(species,
-                                  ba = "Balaenoptera bonaerensis",
-                                  bp = "Balaenoptera physalus",
-                                  bw = "Balaenoptera musculus",
-                                  mn = "Megaptera novaeangliae"),
-                           levels = binom_levels),
-         lunge_h = total_lunges / duration_h)
-
-# Odontocete feeding rates
-odontocete_data <- read_csv("../data/foragestats_combined_ko2.csv") %>%
-  mutate(binomial = factor(str_replace(Species, "_", " "),
-                           levels = binom_levels)) %>% 
-  filter(taxa == "O")
-
-# Labels for logarithmic scales
-log_labels <- trans_format("log10", math_format(10^.x))
-```
-
 Results
 =======
 
 ## Consumption power ($P_{in}$)
 Feeding rates were derived from tag data and tended to decrease with body size. Rorqual feeding rates ranged from 10.7 to 44.1 lunges/hour and odontocete feeding rates ranged from 2.5 to 96.8 buzzes/hour (Table \ref{rf_tbl}).
 
-```{r rf_tbl}
-# Rorqual lunge rates
-lunge_rate <- rorqual_data %>% 
-  filter(duration_h >= 24) %>%
-  group_by(Species = binomial) %>% 
-  summarize(N = n(),
-            `$r_f$` = round(mean(lunge_h), digits = 1)) %>% 
-  mutate(Group = "Rorqual")
-
-# Odontocete buzz rates
-buzz_rate <- odontocete_data %>%  
-  group_by(Species = binomial) %>% 
-  summarize(N = n(),
-            `$r_f$` = (total_buzz_count / total_duration_h) %>% 
-              mean(na.rm = TRUE) %>% 
-              round(digits = 1)) %>% 
-  mutate(Group = "Odontocete")
-
-# P_in tibble
-Ep_tbl <- prey_data %>%
-  uncount(weights = Percent) %>% 
-  group_by(binomial) %>% 
-  summarize(Ep_kJ = mean(`Energy (kJ)`))
-rf_tbl <- rorqual_data %>% 
-  filter(duration_h >= 24) %>%
-  group_by(binomial) %>% 
-  summarize(rf_h = round(mean(lunge_h), 1)) %>%
-  rbind(odontocete_data %>%  
-          group_by(binomial) %>% 
-          summarize(rf_h = round(mean(total_buzz_count / total_duration_h, na.rm = TRUE), 1)))
-Pin_tbl <- inner_join(Ep_tbl, rf_tbl, by = "binomial") %>% 
-  mutate(Pin_kJ_h = Ep_kJ * rf_h) %>% 
-  left_join(select(morphologies, binomial, Family))
-
+```{r}
 # Feeding rate table
-rbind(buzz_rate, lunge_rate) %>% 
-  mutate(Species = sprintf("\\textit{%s}", Species)) %>%
-  select(Group, Species, `$r_f$`, N) %>% 
+rf_tbl %>% 
+  mutate(Species = sprintf("\\textit{%s}", binomial)) %>%
+  select(Group, Species, `$r_f$` = rf_h, N) %>% 
   kable("latex", 
         booktabs = TRUE, 
         escape = FALSE,
@@ -366,7 +267,7 @@ Ep_fig_big <- Ep_fig +
         legend.position = "bottom",
         legend.direction = "horizontal",
         legend.text = element_text(size = 14))
-ggsave("Presentation_figs/Ep_fig.pdf", Ep_fig_big, width = 9.5, height = 4.76)
+ggsave("presentation_figs/Ep_fig.pdf", Ep_fig_big, width = 9.5, height = 4.76)
 
 Ep_fig
 ```
@@ -396,7 +297,7 @@ rf_fig <- rorqual_data %>%
         legend.position = c(0.75, 0.75),
         legend.direction = "vertical",
         legend.text = element_text(size = 14))
-ggsave("Presentation_figs/rf_fig.pdf", rf_fig, width = 9.5, height = 4.76)
+ggsave("presentation_figs/rf_fig.pdf", rf_fig, width = 9.5, height = 4.76)
 ```
 
 ```{r Pin_fig, fig.cap = "Modeled consumption power ($P_{in}$). \\label{Pin_fig}"}
@@ -426,15 +327,15 @@ Pin_fig_big <- Pin_fig +
         legend.title = element_blank(),
         legend.direction = "horizontal",
         legend.text = element_text(size = 14))
-ggsave("Presentation_figs/Pin_fig.pdf", Pin_fig, width = 9.5, height = 4.76)
+ggsave("presentation_figs/Pin_fig.pdf", Pin_fig, width = 9.5, height = 4.76)
 
 Pin_fig 
 ```
 
 ```{r fs_fig, fig.cap = "Predicted cruising speed stroke frequencies ($f_s$). \\label{fs_fig}"}
-Pp_grob <- png::readPNG("../img/Phocoena-phocoena.png") %>% 
+Pp_grob <- png::readPNG("img/Phocoena-phocoena.png") %>% 
   grid::rasterGrob(interpolate = TRUE)
-Bm_grob <- png::readPNG("../img/Balaenoptera-musculus.png") %>% 
+Bm_grob <- png::readPNG("img/Balaenoptera-musculus.png") %>% 
   grid::rasterGrob(interpolate = TRUE)
 
 morphologies %>% 
@@ -503,7 +404,7 @@ esonar_fig2 <- esonar_tbl %>%
         axis.text.x = element_text(face = "italic"))
 
 esonar_fig <- ggpubr::ggarrange(esonar_fig1, esonar_fig2, ncol = 2)
-ggsave("Presentation_figs/Esonar_fig.pdf", esonar_fig, width = 13, height = 4.76)
+ggsave("presentation_figs/Esonar_fig.pdf", esonar_fig, width = 13, height = 4.76)
 ```
 
 References {#references .unnumbered}
