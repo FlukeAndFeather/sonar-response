@@ -121,6 +121,28 @@ Pout_fun <- function(u, l, m) {
   (f_f - f_b) * CL_fun(m) * m
 }
 
+# Sensitivity -----------------------------------------------------------------
+# Parameter CDFs
+# rf (Empirical)
+# Ep (Empirical)
+# Ub (uniform, 0.5 - 2 m/s)
+# ff (gamma, k = 6, mean = fs_fun(U, L))
+rbind(tibble(L = 2, fs = seq(0, 2.5, length.out = 100)),
+      tibble(L = 10, fs = seq(0, 1, length.out = 100)),
+      tibble(L = 25, fs = seq(0, 0.5, length.out = 100))) %>% 
+  crossing(k = 4:8) %>% 
+  mutate(theta = 1.5 * 1.5 / L / k,
+         P_fs = dgamma(fs, shape = k, scale = theta),
+         k_lbl = factor(k)) %>% 
+  ggplot(aes(x = fs, y = P_fs, color = k_lbl, group = k_lbl)) +
+  geom_line() +
+  geom_vline(aes(xintercept = fs),
+             tibble(L = c(2, 10, 25),
+                    fs = 1.5 * 1.5 / L)) +
+  facet_wrap(~ L, scales = "free") +
+  theme_classic()
+# CL (intercept and slope: uniform, 1/2x - 2x)
+
 # Case studies ----------------------------------------------------------------
 cases_tbl <- tibble(binomial = factor(c("Mesoplodon densirostris",
                                         "Ziphius cavirostris",
