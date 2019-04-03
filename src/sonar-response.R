@@ -87,7 +87,7 @@ lunge_rate <- rorqual_data %>%
   mutate(Group = "Rorqual")
 
 # Odontocete buzz rates
-buzz_rate <- odontocete_data %>%  
+buzz_rate <- odontocete_data %>% 
   group_by(binomial) %>% 
   summarize(N = n(),
             rf_h = (total_buzz_count / total_duration_h) %>% 
@@ -124,24 +124,84 @@ Pout_fun <- function(u, l, m) {
 # Sensitivity -----------------------------------------------------------------
 # Parameter CDFs
 # rf (Empirical)
+rf_tbl2 <- rbind(
+  transmute(rorqual_data,
+            ID, 
+            binomial, 
+            rf_h = lunge_h),
+  transmute(odontocete_data,
+            ID, 
+            binomial, 
+            rf_h = total_buzz_count / total_duration_h)) %>% 
+  drop_na(.)
+# Quantiles of the empirical feed rate distribution
+rf_q <- rf_tbl2 %>% 
+  group_by(binomial) %>% 
+  group_map(~ tibble(q_rf = list(function(p) quantile(.x$rf_h, p)))) %>% 
+  ungroup
+  
 # Ep (Empirical)
+Ep_tbl2 <- prey_data %>% 
+  filter(`MR exponent` == 0.45) %>% 
+  uncount(Percent)
+Ep_q <- Ep_tbl2 %>% 
+  group_by(binomial) %>% 
+  group_map(~ tibble(q_Ep = list(function(p) quantile(.x$Ep_kJ, p)))) %>% 
+  ungroup
+  
 # Ub (uniform, 0.5 - 2 m/s)
-# ff (gamma, k = 6, mean = fs_fun(U, L))
-rbind(tibble(L = 2, fs = seq(0, 2.5, length.out = 100)),
-      tibble(L = 10, fs = seq(0, 1, length.out = 100)),
-      tibble(L = 25, fs = seq(0, 0.5, length.out = 100))) %>% 
-  crossing(k = 4:8) %>% 
-  mutate(theta = 1.5 * 1.5 / L / k,
-         P_fs = dgamma(fs, shape = k, scale = theta),
-         k_lbl = factor(k)) %>% 
-  ggplot(aes(x = fs, y = P_fs, color = k_lbl, group = k_lbl)) +
-  geom_line() +
-  geom_vline(aes(xintercept = fs),
-             tibble(L = c(2, 10, 25),
-                    fs = 1.5 * 1.5 / L)) +
-  facet_wrap(~ L, scales = "free") +
-  theme_classic()
+# fs (gamma, k = 6, mean = fs_fun(U, L))
 # CL (intercept and slope: uniform, 1/2x - 2x)
+
+# Vectorized function for calculating Esonar for sensitivity analysis
+Esonar_fun <- function(data) {
+  M_kg <- 93000
+  td_min <- 60
+  tf_min <- 5
+  with(data, 
+       {
+         # Consumption and locomotion power
+         Pin_kJh <- rf_h * Ep_kJ
+         Pin_W <- Pin_kJh / 3600
+         Pout_W <- (ff_hz - fb_hz) * (CL_int + CL_slope * M_kg)
+         
+         # Consumption and locomotion energy (based on behavioral responses)
+         Ein_kJ <- Pin_kJh * td_min / 60
+         Eout_kJ <- Pout_W / 1000 * tf_min * 60
+         
+         # Esonar in kJ
+         Ein_kJ + Eout_kJ
+       }
+  )
+}
+
+# Sensitivity analysis using pse package
+# List of model parameters
+param <- c("rf_h", "Ep_kJ", "ff_hz", "fb_hz", "CL_int", "CL_slope")
+# List of parameter distribution functions
+q <- list(function(p) quantile(filter(rf_tbl2, 
+                                      binomial == "Balaenoptera musculus")$rf_h,
+                               p),
+          function(p) quantile(filter(Ep_tbl2, 
+                                      binomial == "Balaenoptera musculus")$`Energy (kJ)`,
+                               p),
+          qgamma,
+          qgamma,
+          qunif,
+          qunif)
+# List of distribution function parameters
+q_arg <- list(list(),
+              list(),
+              list(shape = 6, scale = fs_fun(2.5, 1.22) / 6),
+              list(shape = 6, scale = fs_fun(1.5, 1.22) / 6),
+              list(min = 1.46 / 2, max = 1.46 * 2),
+              list(min = 0.0005 / 2, max = 0.0005 * 2))
+# Latin hypercube sample of parameter space
+bw_LHS <- pse::LHS(Esonar_fun, param, 200, q, q_arg, nboot = 50)
+# ECDF of model outputs
+pse::plotecdf(bw_LHS)
+# Scatter of model outputs w.r.t. parameters
+pse::plotscatter(bw_LHS)
 
 # Case studies ----------------------------------------------------------------
 cases_tbl <- tibble(binomial = factor(c("Mesoplodon densirostris",
