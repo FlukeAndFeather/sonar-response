@@ -124,6 +124,25 @@ Pout_fun <- function(u, l, m) {
 # Sensitivity -----------------------------------------------------------------
 # Parameter CDFs
 # rf (Empirical)
+
+smooth_ecd <- function(x, adj = 1) {
+  # Kernel density estimate of fake data
+  dens <- density(x, adjust = adj, from = min(x), to = max(x))
+  dens_tbl <- tibble(x = dens$x, y = dens$y)
+  
+  # Plot kernel density (blue), ecdf (red) and smoothed ecdf (black)
+  ggplot(tibble(x = x), aes(x)) + 
+    geom_line(aes(x = x, y = cumsum(y) / sum(y)), 
+              data = dens_tbl,
+              size = 0.7, 
+              colour = 'grey30') +
+    stat_ecdf(colour = "red", size = 0.6, alpha = 0.6) +
+    theme_classic() +
+    labs(title = paste0("adj=", adj))
+}
+smooth_ecd(filter(Ep_tbl2, binomial == "Balaenoptera musculus")$`Energy (kJ)`)
+smooth_ecd(filter(rf_tbl2, binomial == "Balaenoptera musculus")$rf_h)
+
 rf_tbl2 <- rbind(
   transmute(rorqual_data,
             ID, 
