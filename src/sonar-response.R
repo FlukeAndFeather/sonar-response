@@ -58,6 +58,17 @@ prey_data <- read_csv("data/Cetacea model output BOUT_EXTANT_v2.csv") %>%
                            levels = binom_levels)) %>% 
   # data duplicated for multiple MR exponent values, choose one
   filter(`MR exponent` == 0.45)  
+# Dave's rorqual data
+# NOTE: engulfment volumes are from Potvin, not Kahane-Rapport
+rorqual_prey_data <- read_csv("data/BaleenWhaleForagingDistBigKrill100Bins.csv") %>% 
+  select(1:10) %>% 
+  slice(2:5) %>% 
+  mutate(binomial = factor(recode(Species,
+                                  bw = "Balaenoptera musculus",
+                                  bp = "Balaenoptera physalus",
+                                  mn = "Megaptera novaeangliae",
+                                  bb = "Balaenoptera bonaerensis"),
+                           levels = binom_levels))
 
 # Rorqual feeding rates
 rorqual_data <- read_csv("data/lunge_rates_from_Paolo.csv") %>%
@@ -125,23 +136,32 @@ Pout_fun <- function(u, l, m) {
 # Parameter CDFs
 # rf (Empirical)
 
-smooth_ecd <- function(x, adj = 1) {
-  # Kernel density estimate of fake data
-  dens <- density(x, adjust = adj, from = min(x), to = max(x))
-  dens_tbl <- tibble(x = dens$x, y = dens$y)
-  
-  # Plot kernel density (blue), ecdf (red) and smoothed ecdf (black)
+multiple_ecd <- function(x) {
+  # Plot ecdf (red), samples (grey), and mean (black)
+  x_dens <- density(x)
+  x_dens_tbl <- tibble(x = x_dens$x, y = x_dens$y)
+  N <- 5
+  x_samples <- sample(x, N, replace = TRUE) + rnorm(N, 0, x_dens$bw)
+  x_mean <- mean(x_samples)
   ggplot(tibble(x = x), aes(x)) + 
-    geom_line(aes(x = x, y = cumsum(y) / sum(y)), 
-              data = dens_tbl,
-              size = 0.7, 
-              colour = 'grey30') +
     stat_ecdf(colour = "red", size = 0.6, alpha = 0.6) +
+    geom_line(aes(x, cumsum(y) / sum(y)), x_dens_tbl) +
+    geom_vline(xintercept = x_samples,
+               color = "grey30",
+               linetype = "dashed",
+               size = 0.5) +
+    geom_vline(xintercept = x_mean,
+               color = "blue",
+               size = 1) +
     theme_classic() +
-    labs(title = paste0("adj=", adj))
+    labs(title = format(x_mean, digits = 3, scientific = TRUE))
 }
-smooth_ecd(filter(Ep_tbl2, binomial == "Balaenoptera musculus")$`Energy (kJ)`)
-smooth_ecd(filter(rf_tbl2, binomial == "Balaenoptera musculus")$rf_h)
+multiple_ecd(filter(Ep_tbl2, binomial == "Balaenoptera musculus")$`Energy (kJ)`)
+
+ecd_plots <- map(1:12, ~ multiple_ecd(filter(Ep_tbl2, binomial == "Balaenoptera musculus")$`Energy (kJ)`))
+ggpubr::ggarrange(plotlist = ecd_plots, nrow = 4, ncol = 3)
+
+Ep_dens <- density(filter(Ep_tbl2, binomial == "Balaenoptera musculus")$`Energy (kJ)`)
 
 rf_tbl2 <- rbind(
   transmute(rorqual_data,
