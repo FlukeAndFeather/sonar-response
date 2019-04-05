@@ -15,6 +15,62 @@ abbr_binom = function(binom) {
 # Labels for logarithmic scales
 log_labels <- trans_format("log10", math_format(10^.x))
 
+# prey_cdf_fun returns a CDF function paramaterized to prey data.
+# Specifically, the probability function of energy per feeding event in
+# kJ/gulp. Dave calculated the mean and standard deviation of the distribution
+# of biomass density (kg/m3), log10 transformed. To get from biomass to energy:
+# E       = b     * rho   * V
+# kJ/gulp = kg/m3 * kJ/kg * m3/gulp
+# given: mean(log10_b), sd(log_10b)
+# log10(b) = log10(E / V / rho)
+prey_cdf_fun <- function(mean_b, sd_b, V, rho) {
+  function(E) {
+    pnorm(log10(E / V / rho), 
+          mean = mean_b,
+          sd = sd_b)
+  }
+}
+# And same for quantiles
+prey_quant_fun <- function(mean_b, sd_b, V, rho) {
+  function(E) {
+    qnorm(log10(E / V / rho), 
+          mean = mean_b,
+          sd = sd_b)
+  }
+}
+
+# prey_cdf_plot visualizes the empirical CDF from Matt's dataset alongside
+# the lognormal distribution using Dave's parameters.
+prey_cdf_plot <- function() {
+  # Empirical CDF data (Matt)
+  ecdf_data <- filter(prey_data, Family == "Balaenopteridae")
+  # Log-normal CDF data (Dave)
+  lncdf_data <- crossing(Ep = seq(min(ecdf_data$`Energy (kJ)`),
+                                  max(ecdf_data$`Energy (kJ)`),
+                                  length.out = 100),
+                         binomial = as.character(rorqual_prey_data$binomial)) %>% 
+    group_by(binomial) %>% 
+    group_map(function(data, key) {
+      p_Ep_fun = filter(rorqual_prey_data, binomial == key$binomial)$p_Ep[[1]]
+      mutate(data, p_Ep = p_Ep_fun(Ep))
+    }) %>% 
+    ungroup
+  # Plot
+  ggplot(mapping = aes(color = binomial, group = binomial)) +
+    # ECDF
+    stat_ecdf(aes(`Energy (kJ)`),
+              ecdf_data) +
+    # Log-normal
+    geom_line(aes(Ep, p_Ep),
+              lncdf_data) +
+    facet_wrap(~ binomial) +
+    scale_x_continuous(labels = function(breaks) sprintf("%.0fx10^6", breaks / 1e6)) +
+    labs(x = "Energy per feeding event (kJ)",
+         y = "Cumulative probability") +
+    theme_minimal() +
+    theme(legend.position = "none")
+}
+
 # Data ------------------------------------------------------------------------
 # Morphological data
 morphologies <- read_csv("data/foragestats_combined_ko2.csv") %>% 
@@ -58,9 +114,10 @@ prey_data <- read_csv("data/Cetacea model output BOUT_EXTANT_v2.csv") %>%
                            levels = binom_levels)) %>% 
   # data duplicated for multiple MR exponent values, choose one
   filter(`MR exponent` == 0.45)  
+
 # Dave's rorqual data
 # NOTE: engulfment volumes are from Potvin, not Kahane-Rapport
-rorqual_prey_data <- read_csv("data/BaleenWhaleForagingDistBigKrill100Bins.csv") %>% 
+rorqual_prey_data <- read_csv("data/BaleenWhaleForagingDistBigKrill100Bins.csv") %>%
   select(1:10) %>% 
   slice(2:5) %>% 
   mutate(binomial = factor(recode(Species,
@@ -68,7 +125,17 @@ rorqual_prey_data <- read_csv("data/BaleenWhaleForagingDistBigKrill100Bins.csv")
                                   bp = "Balaenoptera physalus",
                                   mn = "Megaptera novaeangliae",
                                   bb = "Balaenoptera bonaerensis"),
-                           levels = binom_levels))
+                           levels = binom_levels),
+         p_Ep = pmap(list(meanLog10biomass_log10kgm3,
+                          stdLog10biomass_log10kgm3, 
+                          meanVw_m3gulp,
+                          KrillEnergy_kJkg),
+                     prey_cdf_fun),
+         q_Ep = pmap(list(meanLog10biomass_log10kgm3,
+                          stdLog10biomass_log10kgm3, 
+                          meanVw_m3gulp,
+                          KrillEnergy_kJkg),
+                     prey_quant_fun))
 
 # Rorqual feeding rates
 rorqual_data <- read_csv("data/lunge_rates_from_Paolo.csv") %>%
@@ -109,11 +176,28 @@ buzz_rate <- odontocete_data %>%
 # Feeding rates table
 rf_tbl <- rbind(lunge_rate, buzz_rate)
 
+# Once I get Danuta's buzz data I'll update this from a deployment-based
+# distribution to hourly
+rf_tbl2 <- rbind(
+  transmute(rorqual_data,
+            ID, 
+            binomial, 
+            rf_h = lunge_h),
+  transmute(odontocete_data,
+            ID, 
+            binomial, 
+            rf_h = total_buzz_count / total_duration_h)
+) %>% 
+  drop_na
+
 # Prey energy (Ep) ------------------------------------------------------------
 Ep_tbl <- prey_data %>%
   uncount(weights = Percent) %>% 
   group_by(binomial) %>% 
   summarize(Ep_kJ = mean(`Energy (kJ)`))
+
+# From Dave, rorqual prey density is a log-normal distribution. Are odontocete
+# prey densities purely empirical? Or can I estimate with log-normal as well?
 
 # Consumption power (Pin) -----------------------------------------------------
 Pin_tbl <- inner_join(Ep_tbl, rf_tbl, by = "binomial") %>% 
@@ -133,37 +217,13 @@ Pout_fun <- function(u, l, m) {
 }
 
 # Sensitivity -----------------------------------------------------------------
+morphologies %>% 
+  select(binomial, Length_m, Mass_kg) %>% 
+  mutate()
 # Parameter CDFs
 # rf (Empirical)
-
-multiple_ecd <- function(x) {
-  # Plot ecdf (red), samples (grey), and mean (black)
-  x_dens <- density(x)
-  x_dens_tbl <- tibble(x = x_dens$x, y = x_dens$y)
-  N <- 5
-  x_samples <- sample(x, N, replace = TRUE) + rnorm(N, 0, x_dens$bw)
-  x_mean <- mean(x_samples)
-  ggplot(tibble(x = x), aes(x)) + 
-    stat_ecdf(colour = "red", size = 0.6, alpha = 0.6) +
-    geom_line(aes(x, cumsum(y) / sum(y)), x_dens_tbl) +
-    geom_vline(xintercept = x_samples,
-               color = "grey30",
-               linetype = "dashed",
-               size = 0.5) +
-    geom_vline(xintercept = x_mean,
-               color = "blue",
-               size = 1) +
-    theme_classic() +
-    labs(title = format(x_mean, digits = 3, scientific = TRUE))
-}
-multiple_ecd(filter(Ep_tbl2, binomial == "Balaenoptera musculus")$`Energy (kJ)`)
-
-ecd_plots <- map(1:12, ~ multiple_ecd(filter(Ep_tbl2, binomial == "Balaenoptera musculus")$`Energy (kJ)`))
-ggpubr::ggarrange(plotlist = ecd_plots, nrow = 4, ncol = 3)
-
-Ep_dens <- density(filter(Ep_tbl2, binomial == "Balaenoptera musculus")$`Energy (kJ)`)
-
-rf_tbl2 <- rbind(
+# Quantiles of the empirical feed rate distribution
+rf_q <- rbind(
   transmute(rorqual_data,
             ID, 
             binomial, 
@@ -171,14 +231,13 @@ rf_tbl2 <- rbind(
   transmute(odontocete_data,
             ID, 
             binomial, 
-            rf_h = total_buzz_count / total_duration_h)) %>% 
-  drop_na(.)
-# Quantiles of the empirical feed rate distribution
-rf_q <- rf_tbl2 %>% 
+            rf_h = total_buzz_count / total_duration_h)
+  ) %>% 
+  drop_na %>% 
   group_by(binomial) %>% 
   group_map(~ tibble(q_rf = list(function(p) quantile(.x$rf_h, p)))) %>% 
   ungroup
-  
+
 # Ep (Empirical)
 Ep_tbl2 <- prey_data %>% 
   filter(`MR exponent` == 0.45) %>% 
