@@ -31,8 +31,8 @@ prey_cdf_fun <- function(mean_b, sd_b, V, rho) {
   }
 }
 prey_quant_fun <- function(mean_b, sd_b, V, rho) {
-  function(q) {
-    log10_b <- qnorm(q, 
+  function(p, ...) {
+    log10_b <- qnorm(p, 
                      mean = mean_b,
                      sd = sd_b)
     10 ^ log10_b * V * rho
@@ -230,7 +230,13 @@ Pin_tbl <- inner_join(Ep_tbl, rf_tbl, by = "binomial") %>%
   left_join(select(morphologies, binomial, Family), by = "binomial")
 
 # Locomotion power (Pout) -----------------------------------------------------
-fs_fun <- function(U, L) 1.5 * U / L
+fs_fun <- function(U, L, La = 0.2, St = 0.3) {
+  # St = A * f / U
+  # A = L * La
+  # St = L * La * f / U
+  # f = St * U / L / La
+  St * U / L / La
+}
 U_b_ms <- 1.5
 
 CL_fun <- function(m) 1.46 + 0.0005 * m
@@ -242,9 +248,6 @@ Pout_fun <- function(u, l, m) {
 }
 
 # Sensitivity -----------------------------------------------------------------
-morphologies %>% 
-  select(binomial, Length_m, Mass_kg) %>% 
-  mutate()
 # Parameter CDFs
 # rf (Empirical)
 # Quantiles of the empirical feed rate distribution
@@ -260,32 +263,28 @@ rf_q <- rbind(
   ) %>% 
   drop_na %>% 
   group_by(binomial) %>% 
-  group_map(~ tibble(q_rf = list(function(p) quantile(.x$rf_h, p)))) %>% 
+  group_map(~ tibble(q_rf = list(function(p, ...) quantile(.x$rf_h, p)))) %>% 
   ungroup
 
-# Ep (Empirical)
-Ep_tbl2 <- prey_data %>% 
-  filter(`MR exponent` == 0.45) %>% 
-  uncount(Percent)
-Ep_q <- Ep_tbl2 %>% 
-  group_by(binomial) %>% 
-  group_map(~ tibble(q_Ep = list(function(p) quantile(.x$Ep_kJ, p)))) %>% 
-  ungroup
-  
+# Ep (log-normal, see prey_cdf_tbl)
 # Ub (uniform, 0.5 - 2 m/s)
-# fs (gamma, k = 6, mean = fs_fun(U, L))
-# CL (intercept and slope: uniform, 1/2x - 2x)
+# ff_mult (uniform, 1/5x - 5x)
+# CL (intercept and slope: uniform, 1/5x - 5x)
 
 # Vectorized function for calculating Esonar for sensitivity analysis
 Esonar_fun <- function(data) {
   M_kg <- 93000
+  L_m <- 25.20
   td_min <- 60
   tf_min <- 5
+  Uf_ms <- 2.5
   with(data, 
        {
          # Consumption and locomotion power
          Pin_kJh <- rf_h * Ep_kJ
          Pin_W <- Pin_kJh / 3600
+         ff_hz <- fs_fun(Uf_ms, L_m) * ff_mult
+         fb_hz <- fs_fun(U_b_ms, L_m) * ff_mult
          Pout_W <- (ff_hz - fb_hz) * (CL_int + CL_slope * M_kg)
          
          # Consumption and locomotion energy (based on behavioral responses)
@@ -300,25 +299,19 @@ Esonar_fun <- function(data) {
 
 # Sensitivity analysis using pse package
 # List of model parameters
-param <- c("rf_h", "Ep_kJ", "ff_hz", "fb_hz", "CL_int", "CL_slope")
+param <- c("rf_h", "Ep_kJ", "ff_mult", "CL_int", "CL_slope")
 # List of parameter distribution functions
-q <- list(function(p) quantile(filter(rf_tbl2, 
-                                      binomial == "Balaenoptera musculus")$rf_h,
-                               p),
-          function(p) quantile(filter(Ep_tbl2, 
-                                      binomial == "Balaenoptera musculus")$`Energy (kJ)`,
-                               p),
-          qgamma,
-          qgamma,
-          qunif,
-          qunif)
+q <- list(rf_h = filter(rf_q, binomial == "Balaenoptera musculus")$q_rf[[1]],
+          Ep_kJ = filter(prey_cdf_tbl, binomial == "Balaenoptera musculus")$q_Ep_fun[[1]],
+          ff_mult = qunif,
+          CL_int = qunif,
+          CL_slope = qunif)
 # List of distribution function parameters
-q_arg <- list(list(),
-              list(),
-              list(shape = 6, scale = fs_fun(2.5, 1.22) / 6),
-              list(shape = 6, scale = fs_fun(1.5, 1.22) / 6),
-              list(min = 1.46 / 2, max = 1.46 * 2),
-              list(min = 0.0005 / 2, max = 0.0005 * 2))
+q_arg <- list(rf_h = list(),
+              Ep_kJ = list(),
+              ff_mult = list(min = 0.2, max = 5),
+              CL_int = list(min = 1.46 / 2, max = 1.46 * 2),
+              CL_slope = list(min = 0.0005 / 2, max = 0.0005 * 2))
 # Latin hypercube sample of parameter space
 bw_LHS <- pse::LHS(Esonar_fun, param, 200, q, q_arg, nboot = 50)
 # ECDF of model outputs
