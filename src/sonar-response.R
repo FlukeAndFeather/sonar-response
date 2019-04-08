@@ -39,99 +39,6 @@ prey_quant_fun <- function(mean_b, sd_b, V, rho) {
   }
 }
 
-# prey_cdf_plot visualizes the empirical CDF from Matt's dataset alongside
-# the lognormal distribution using Dave's parameters.
-prey_cdf_plot <- function() {
-  # Empirical CDF data (Matt)
-  ecdf_data <- filter(prey_data, Family == "Balaenopteridae")
-  # Log-normal CDF data (Dave)
-  lncdf_data <- crossing(Ep = seq(min(ecdf_data$`Energy (kJ)`),
-                                  max(ecdf_data$`Energy (kJ)`),
-                                  length.out = 100),
-                         binomial = as.character(rorqual_prey_data$binomial)) %>% 
-    group_by(binomial) %>% 
-    group_map(function(data, key) {
-      p_Ep_fun = filter(rorqual_prey_data, binomial == key$binomial)$p_Ep[[1]]
-      mutate(data, p_Ep = p_Ep_fun(Ep))
-    }) %>% 
-    ungroup
-  # Plot
-  ggplot(mapping = aes(color = binomial, group = binomial)) +
-    # ECDF
-    stat_ecdf(aes(`Energy (kJ)`),
-              ecdf_data) +
-    # Log-normal
-    geom_line(aes(Ep, p_Ep),
-              lncdf_data) +
-    facet_wrap(~ binomial) +
-    scale_x_continuous(labels = function(breaks) sprintf("%.0fx10^6", breaks / 1e6)) +
-    labs(x = "Energy per feeding event (kJ)",
-         y = "Cumulative probability") +
-    theme_minimal() +
-    theme(legend.position = "none")
-}
-
-# Create prey CDF plots and record log-normal params
-prey_cdfs <- prey_data %>% 
-  group_split(binomial) %>% 
-  map(function(data) {
-    binom <- data$binomial[1]
-    family <- data$Family[1]
-    # ECDF data (Matt)
-    emp_data <- uncount(data, Percent * 10)
-    
-    # For rorquals, use Dave's numbers
-    if (family == "Balaenopteridae") {
-      # Log-normal CDF data (Dave)
-      q_Ep_fun <- filter(rorqual_prey_data, binomial == binom)$q_Ep[[1]]
-      p_Ep_fun <- filter(rorqual_prey_data, binomial == binom)$p_Ep[[1]]
-    } else {
-      # For odontocetes, fit log-normal
-      log10Ep_mean <- mean(log10(data$`Energy (kJ)`))
-      log10Ep_sd <- sd(log10(data$`Energy (kJ)`))
-      q_Ep_fun <- function(q) 10 ^ qnorm(q, 
-                                         mean = log10Ep_mean, 
-                                         sd = log10Ep_sd)
-      p_Ep_fun <- function(Ep) pnorm(log10(Ep),
-                                     mean = log10Ep_mean, 
-                                     sd = log10Ep_sd)
-    }
-    
-    lncdf_bounds <- q_Ep_fun(c(0.01, 0.99))
-    lncdf_data <- tibble(Ep = seq(lncdf_bounds[1],
-                                  lncdf_bounds[2],
-                                  length.out = 100),
-                         p_Ep = p_Ep_fun(Ep))
-    
-    plot <- ggplot() +
-      # ECDF
-      stat_ecdf(aes(`Energy (kJ)`),
-                emp_data) +
-      # Log-normal
-      geom_line(aes(Ep, p_Ep),
-                lncdf_data,
-                linetype = "dashed") +
-      labs(x = "Energy per feeding event (kJ)",
-           y = "Cumulative probability",
-           title = binom) +
-      theme_minimal() +
-      theme(legend.position = "none")
-    
-    list(binomial = binom,
-         plot = plot,
-         q_Ep_fun = q_Ep_fun,
-         p_Ep_fun = p_Ep_fun)
-  })
-
-walk(prey_cdfs, 
-     function(x) {
-       binom <- as.character(x$binomial)
-       ggsave(sprintf("figs/prey_cdfs/%s.pdf", binom),
-              plot = x$plot,
-              width = 9,
-              height = 6)
-     })
-
 # Data ------------------------------------------------------------------------
 # Morphological data
 morphologies <- read_csv("data/foragestats_combined_ko2.csv") %>% 
@@ -197,6 +104,63 @@ rorqual_prey_data <- read_csv("data/BaleenWhaleForagingDistBigKrill100Bins.csv")
                           meanVw_m3gulp,
                           KrillEnergy_kJkg),
                      prey_quant_fun))
+
+
+# For odontocetes, fit log-normal to Ep
+prey_cdf_tbl <- prey_data %>% 
+  group_by(binomial) %>% 
+  group_map(function(data, key) {
+    binom <- key[[1]]
+    family <- data$Family[1]
+    # ECDF data (Matt)
+    emp_data <- uncount(data, Percent * 10)
+    
+    # For rorquals, use Dave's numbers
+    if (family == "Balaenopteridae") {
+      # Log-normal CDF data (Dave)
+      q_Ep_fun <- filter(rorqual_prey_data, binomial == binom)$q_Ep[[1]]
+      p_Ep_fun <- filter(rorqual_prey_data, binomial == binom)$p_Ep[[1]]
+    } else {
+      # For odontocetes, fit log-normal
+      log10Ep_mean <- mean(log10(data$`Energy (kJ)`))
+      log10Ep_sd <- sd(log10(data$`Energy (kJ)`))
+      q_Ep_fun <- function(q) 10 ^ qnorm(q, 
+                                         mean = log10Ep_mean, 
+                                         sd = log10Ep_sd)
+      p_Ep_fun <- function(Ep) pnorm(log10(Ep),
+                                     mean = log10Ep_mean, 
+                                     sd = log10Ep_sd)
+    }
+    
+    lncdf_bounds <- q_Ep_fun(c(0.01, 0.99))
+    lncdf_data <- tibble(Ep = seq(lncdf_bounds[1],
+                                  lncdf_bounds[2],
+                                  length.out = 100),
+                         p_Ep = p_Ep_fun(Ep))
+    
+    plot <- ggplot() +
+      # ECDF
+      stat_ecdf(aes(`Energy (kJ)`),
+                emp_data) +
+      # Log-normal
+      geom_line(aes(Ep, p_Ep),
+                lncdf_data,
+                linetype = "dashed") +
+      labs(x = "Energy per feeding event (kJ)",
+           y = "Cumulative probability",
+           title = binom) +
+      theme_minimal() +
+      theme(legend.position = "none")
+    
+    ggsave(sprintf("figs/prey_cdfs/%s.pdf", binom),
+           plot,
+           width = 9,
+           height = 6)
+    
+    tibble(plot = list(plot),
+           q_Ep_fun = list(q_Ep_fun),
+           p_Ep_fun = list(p_Ep_fun))
+  })
 
 # Rorqual feeding rates
 rorqual_data <- read_csv("data/lunge_rates_from_Paolo.csv") %>%
