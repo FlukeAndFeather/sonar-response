@@ -73,56 +73,37 @@ prey_cdf_plot <- function() {
 
 # Create prey CDF plots and record log-normal params
 prey_cdfs <- prey_data %>% 
-  mutate(grouping = case_when(Family == "Balaenopteridae" ~ "Rorqual",
-                              Family %in% c("Phocoenidae", "Delphinidae") ~ "Small Odontocetes",
-                              TRUE ~ "Large Odontocetes")) %>% 
-  group_split(grouping) %>% 
+  group_split(binomial) %>% 
   map(function(data) {
-    grouping <- data$grouping[[1]]
+    binom <- data$binomial[1]
+    family <- data$Family[1]
     # ECDF data (Matt)
     emp_data <- uncount(data, Percent * 10)
     
     # For rorquals, use Dave's numbers
-    if (grouping == "Rorqual") {
+    if (family == "Balaenopteridae") {
       # Log-normal CDF data (Dave)
-      lncdf_bounds <- map(rorqual_prey_data$q_Ep,
-                          ~ .x(c(0.01, 0.99))) %>% 
-        unlist %>% 
-        range
-      
-      lncdf_data <- crossing(Ep = seq(lncdf_bounds[1],
-                                      lncdf_bounds[2],
-                                      length.out = 100),
-                             binomial = as.character(rorqual_prey_data$binomial)) %>% 
-        group_by(binomial) %>% 
-        group_map(function(data, key) {
-          p_Ep_fun = filter(rorqual_prey_data, binomial == key$binomial)$p_Ep[[1]]
-          mutate(data, p_Ep = p_Ep_fun(Ep))
-        }) %>% 
-        ungroup
+      q_Ep_fun <- filter(rorqual_prey_data, binomial == binom)$q_Ep[[1]]
+      p_Ep_fun <- filter(rorqual_prey_data, binomial == binom)$p_Ep[[1]]
     } else {
-      # For odontocetes, try log-normal, gamma, and inverse gamma
-      ln_params <- emp_data %>% 
-        group_by(binomial) %>% 
-        summarize(Ep_log10mean = mean(log10(`Energy (kJ)`)), 
-                  Ep_log10sd = sd(log10(`Energy (kJ)`)))
-      lncdf_bounds <- 10 ^ (map2(ln_params$Ep_log10mean, 
-                                 ln_params$Ep_log10sd, 
-                                 ~ qnorm(c(0.01, 0.99),
-                                         mean = .x,
-                                         sd = .y)) %>% 
-                              unlist %>% 
-                              range)
-      lncdf_data <- crossing(Ep = seq(lncdf_bounds[1],
-                                    lncdf_bounds[2],
-                                    length.out = 100),
-                             binomial = as.character(unique(data$binomial))) %>% 
-        mutate(p_Ep = pnorm(log10(Ep),
-                            mean = ln_params$Ep_log10mean,
-                            sd = ln_params$Ep_log10sd))
+      # For odontocetes, fit log-normal
+      log10Ep_mean <- mean(log10(data$`Energy (kJ)`))
+      log10Ep_sd <- sd(log10(data$`Energy (kJ)`))
+      q_Ep_fun <- function(q) 10 ^ qnorm(q, 
+                                         mean = log10Ep_mean, 
+                                         sd = log10Ep_sd)
+      p_Ep_fun <- function(Ep) pnorm(log10(Ep),
+                                     mean = log10Ep_mean, 
+                                     sd = log10Ep_sd)
     }
     
-    plot <- ggplot(mapping = aes(color = binomial, group = binomial)) +
+    lncdf_bounds <- q_Ep_fun(c(0.01, 0.99))
+    lncdf_data <- tibble(Ep = seq(lncdf_bounds[1],
+                                  lncdf_bounds[2],
+                                  length.out = 100),
+                         p_Ep = p_Ep_fun(Ep))
+    
+    plot <- ggplot() +
       # ECDF
       stat_ecdf(aes(`Energy (kJ)`),
                 emp_data) +
@@ -132,20 +113,20 @@ prey_cdfs <- prey_data %>%
                 linetype = "dashed") +
       labs(x = "Energy per feeding event (kJ)",
            y = "Cumulative probability",
-           title = grouping) +
-      facet_wrap(~ binomial,
-                 scales = "free") +
+           title = binom) +
       theme_minimal() +
       theme(legend.position = "none")
     
-    list(grouping = grouping,
-         plot = plot)
+    list(binomial = binom,
+         plot = plot,
+         q_Ep_fun = q_Ep_fun,
+         p_Ep_fun = p_Ep_fun)
   })
 
 walk(prey_cdfs, 
      function(x) {
-       group <- as.character(x$grouping)
-       ggsave(sprintf("figs/prey_cdfs/%s.pdf", group),
+       binom <- as.character(x$binomial)
+       ggsave(sprintf("figs/prey_cdfs/%s.pdf", binom),
               plot = x$plot,
               width = 9,
               height = 6)
