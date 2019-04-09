@@ -152,10 +152,11 @@ prey_cdf_tbl <- prey_data %>%
       theme_minimal() +
       theme(legend.position = "none")
     
-    ggsave(sprintf("figs/prey_cdfs/%s.pdf", binom),
-           plot,
-           width = 9,
-           height = 6)
+    # Uncomment me to re-generate prey CDF plots
+    # ggsave(sprintf("figs/prey_cdfs/%s.pdf", binom),
+    #        plot,
+    #        width = 9,
+    #        height = 6)
     
     tibble(plot = list(plot),
            q_Ep_fun = list(q_Ep_fun),
@@ -214,6 +215,40 @@ rf_tbl2 <- rbind(
             rf_h = total_buzz_count / total_duration_h)
 ) %>% 
   drop_na
+
+# Feeding rate quantiles
+buzz_tbl <- read_csv("data/deployment_info.csv") %>% 
+  left_join(read_csv("data/all_buzzes.csv")) %>% 
+  mutate(binomial = factor(str_replace(species, "_", " "),
+                           levels = binom_levels)) %>% 
+  group_by(deployment_ID) %>% 
+  mutate(hour = floor(buzz_start / 3600)) %>% 
+  group_by(binomial, deployment_ID, hour) %>% 
+  summarize(rf_h = n())
+
+buzz_q_tbl <- buzz_tbl %>% 
+  group_by(binomial) %>% 
+  group_map(function(data, key) {
+    binom <- key[[1]]
+    # ECDF plot
+    plot <- ggplot(data, aes(rf_h)) + 
+      stat_ecdf() +
+      labs(x = "Hourly feeding rate",
+           y = "Cumulative probability",
+           title = binom) +
+      theme_minimal()
+    # ggsave(sprintf("figs/rf_cdfs/%s.pdf", binom),
+    #        plot,
+    #        width = 9,
+    #        height = 6)
+    # Quantile function
+    q_buzz <- function(p, ...) {
+      quantile(data$rf_h, probs = p)
+    }
+    
+    tibble(plot = list(plot),
+           q_rf_fun = list(q_buzz))
+  })
 
 # Prey energy (Ep) ------------------------------------------------------------
 Ep_tbl <- prey_data %>%
