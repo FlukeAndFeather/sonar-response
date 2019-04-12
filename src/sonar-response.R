@@ -94,114 +94,149 @@ Pout_fun <- function(u, l, m) {
 # CL_mult (uniform, -10 - 10)
 
 # Vectorized function for calculating Esonar for sensitivity analysis
-Esonar_fun <- function(data) {
-  M_kg <- 93000
-  L_m <- 25.20
-  td_min <- 60
-  tf_min <- 5
-  Uf_ms <- 2.5
-  with(data, 
-       {
-         # Consumption and locomotion power
-         Pin_kJh <- rf_h * Ep_kJ
-         Pin_W <- Pin_kJh / 3600
-         ff_hz <- fs_fun(Uf_ms, L_m) * 10 ^ ff_mult
-         fb_hz <- fs_fun(U_b_ms, L_m)
-         Pout_W <- (ff_hz - fb_hz) * 10 ^ CL_mult * (1.46 + 0.0005 * M_kg)
-         
-         # Consumption and locomotion energy (based on behavioral responses)
-         Ein_kJ <- Pin_kJh * td_min / 60
-         Eout_kJ <- Pout_W / 1000 * tf_min * 60
-         
-         # Esonar in kJ
-         Ein_kJ + Eout_kJ
-       }
-  )
+Esonar_fun <- function(M_kg, L_m, td_min, tf_min, Uf_ms) {
+  function(data) {
+    with(data, 
+         {
+           # Consumption and locomotion power
+           Pin_kJh <- rf_h * Ep_kJ
+           Pin_W <- Pin_kJh / 3600
+           ff_hz <- fs_fun(Uf_ms, L_m) * 10 ^ ff_mult
+           fb_hz <- fs_fun(U_b_ms, L_m)
+           Pout_W <- (ff_hz - fb_hz) * 10 ^ CL_mult * (1.46 + 0.0005 * M_kg)
+           
+           # Consumption and locomotion energy (based on behavioral responses)
+           Ein_kJ <- Pin_kJh * td_min / 60
+           Eout_kJ <- Pout_W / 1000 * tf_min * 60
+           
+           # Esonar in kJ
+           Ein_kJ + Eout_kJ
+         }
+    )
+  }
 }
 
 # Sensitivity analysis using pse package
 # List of model parameters
-param <- c("rf_h", "Ep_kJ", "ff_mult", "CL_mult")
-# List of parameter distribution functions
-bw_rf_q <- filter(rf_tbl, binomial == "Balaenoptera musculus")$q_rf_fun[[1]]
-bw_Ep_q <- filter(Ep_tbl, binomial == "Balaenoptera musculus")$q_Ep_fun[[1]]
-q <- list(rf_h = bw_rf_q,
-          Ep_kJ = bw_Ep_q,
-          ff_mult = qunif,
-          CL_mult = qunif)
-# List of distribution function parameters
-q_arg <- list(rf_h = list(),
-              Ep_kJ = list(),
-              ff_mult = list(min = -1, max = 1),
-              CL_mult = list(min = -1, max = 1))
-# Latin hypercube sample of parameter space
-bw_LHS <- pse::LHS(Esonar_fun, param, 500, q, q_arg, nboot = 50)
-sens_result <- cbind(bw_LHS$data, bw_LHS$res)
-colnames(sens_result)[length(colnames(sens_result))] <- "Esonar"
-# ECDF of model outputs
-ggplot(sens_result, aes(Esonar)) +
-  stat_ecdf() +
-  labs(x = "Energetic cost (kJ)",
-       y = "Cumulative probability") +
-  theme_minimal()
-# Scatter of model outputs w.r.t. parameters
-pse::plotscatter(bw_LHS)
-sens_result %>% 
-  gather(parameter, value, rf_h:CL_mult) %>% 
-  ggplot(aes(value, Esonar)) +
-  geom_point(size = 0.5) +
-  geom_smooth(method = "lm",
-              se = FALSE) +
-  labs(x = "",
-       y = "Energetic cost (kJ)") +
-  facet_wrap(~ parameter, 
-             scales = "free_x",
-             strip.position = "bottom") +
-  theme_minimal() +
-  theme(strip.placement = "outside")
+# param <- c("rf_h", "Ep_kJ", "ff_mult", "CL_mult")
+# q <- list(rf_h = bw_rf_q,
+#           Ep_kJ = bw_Ep_q,
+#           ff_mult = qunif,
+#           CL_mult = qunif)
+# # List of distribution function parameters
+# q_arg <- list(rf_h = list(),
+#               Ep_kJ = list(),
+#               ff_mult = list(min = -1, max = 1),
+#               CL_mult = list(min = -1, max = 1))
+# # Latin hypercube sample of parameter space
+# bw_LHS <- pse::LHS(Esonar_fun, param, 500, q, q_arg, nboot = 50)
+# sens_result <- cbind(bw_LHS$data, bw_LHS$res)
+# colnames(sens_result)[length(colnames(sens_result))] <- "Esonar"
+# # ECDF of model outputs
+# ggplot(sens_result, aes(Esonar)) +
+#   stat_ecdf() +
+#   labs(x = "Energetic cost (kJ)",
+#        y = "Cumulative probability") +
+#   theme_minimal()
+# # Scatter of model outputs w.r.t. parameters
+# pse::plotscatter(bw_LHS)
+# sens_result %>% 
+#   gather(parameter, value, rf_h:CL_mult) %>% 
+#   ggplot(aes(value, Esonar)) +
+#   geom_point(size = 0.5) +
+#   geom_smooth(method = "lm",
+#               se = FALSE) +
+#   labs(x = "",
+#        y = "Energetic cost (kJ)") +
+#   facet_wrap(~ parameter, 
+#              scales = "free_x",
+#              strip.position = "bottom") +
+#   theme_minimal() +
+#   theme(strip.placement = "outside")
 
 # Scenarios -------------------------------------------------------------------
-cases_tbl <- tibble(binomial = factor(c("Mesoplodon densirostris",
-                                        "Ziphius cavirostris",
-                                        "Balaenoptera bonaerensis",
-                                        "Balaenoptera musculus"),
-                                      levels = binom_levels),
-                    t_d_min = c(6*60,
-                                6*60,
-                                2.5*60,
-                                60),
-                    t_f_min = c(30,
-                                30,
-                                60,
-                                5),
-                    U_f_ms = c(4.5,
-                               4.5,
-                               3.5,
-                               2.5),
-                    Reference = c("DeRuiter et al. 2013 Fig 1.",
-                                  "DeRuiter et al. 2013 Fig 1.",
-                                  "Kvadsheim et al. 2017 Fig 2.",
-                                  "Southall et al. 2019 bw11\\_219b"))
-
-esonar_tbl <- cases_tbl %>% 
+## Behavioral responses
+scenario_tbl <- tribble(
+  ~binomial,                 ~t_d_min, ~t_f_min, ~U_f_ms,
+  "Phocoena phocoena",       3 * 60,   30,       4.5,
+  "Grampus griseus",         4 * 60,   30,       4.5,
+  "Ziphius cavirostris",     6 * 60,   30,       4.5,
+  "Physeter macrocephalus",  3 * 60,   30,       4.5,
+  "Megaptera novaeangliae",  2 * 60,   15,       3.5,
+  "Balaenoptera musculus",   1 * 60,   5,        2.5
+) %>% 
+  mutate(binomial = factor(binomial, levels = binom_levels)) %>% 
+  ## Morphologies
   left_join(select(morphologies,
                    binomial,
                    Mass_kg,
                    Length_m),
             by = "binomial") %>%
-  # P_in
-  left_join(Pin_tbl, by = "binomial") %>%
-  # P_out
-  mutate(f_f = fs_fun(U_f_ms, Length_m),
-         f_b = fs_fun(U_b_ms, Length_m),
-         C_L = CL_fun(Mass_kg),
-         Pout_W = Pout_fun(U_f_ms, Length_m, Mass_kg)) %>% 
-  # E_sonar
-  # The units are a little wonky. Intake is in units of kJ/hour and output
-  # is in J/s (W).
-  mutate(E_in_kJ = Pin_kJ_h * t_d_min / 60,
-         E_out_kJ = Pout_W / 1000 * t_f_min * 60,
-         E_sonar_kJ = E_in_kJ + E_out_kJ,
-         BMR_kJ_day = 293.1 * Mass_kg ^ 0.75,
-         E_BMR = E_sonar_kJ / BMR_kJ_day,
-         E_m = E_sonar_kJ / Mass_kg)
+  ## rf probabilities
+  left_join(select(rf_tbl, binomial, q_rf_fun), by = "binomial") %>% 
+  ## Ep probabilities
+  left_join(select(Ep_tbl, binomial, q_Ep_fun), by = "binomial") 
+
+scenario_tbl %>% 
+  group_by(binomial) %>% 
+  group_map(function(data, key) {
+    param <- c("rf_h", "Ep_kJ", "ff_mult", "CL_mult")
+    q <- list(rf_h = data$q_rf_fun[[1]],
+              Ep_kJ = data$q_Ep_fun[[1]],
+              ff_mult = qunif,
+              CL_mult = qunif)
+    
+    # List of distribution function parameters
+    q_arg <- list(rf_h = list(),
+                  Ep_kJ = list(),
+                  ff_mult = list(min = -1, max = 1),
+                  CL_mult = list(min = -1, max = 1))
+    
+    # Latin hypercube sample of parameter space
+    esonar_LHS <- Esonar_fun(data$Mass_kg, 
+                             data$Length_m,
+                             data$t_d_min,
+                             data$t_f_min,
+                             data$U_f_ms) %>% 
+      pse::LHS(param, 500, q, q_arg, nboot = 50)
+    sens_result <- cbind(esonar_LHS$data, esonar_LHS$res)
+    colnames(sens_result)[length(colnames(sens_result))] <- "Esonar"
+    
+    # ECDF of model outputs
+    esonar_ecdf <- ggplot(sens_result, aes(Esonar)) +
+      stat_ecdf() +
+      labs(x = "Energetic cost (kJ)",
+           y = "Cumulative probability",
+           title = key$binomial) +
+      theme_minimal()
+    
+    # Scatter of model outputs w.r.t. parameters
+    esonar_scatter <- sens_result %>% 
+      gather(parameter, value, rf_h:CL_mult) %>% 
+      ggplot(aes(value, Esonar)) +
+      geom_point(size = 0.5) +
+      geom_smooth(method = "lm",
+                  se = FALSE) +
+      labs(x = "",
+           y = "Energetic cost (kJ)",
+           title = key$binomial) +
+      facet_wrap(~ parameter, 
+                 scales = "free_x",
+                 strip.position = "bottom") +
+      theme_minimal() +
+      theme(strip.placement = "outside")
+    
+    # Save plots
+    ggsave(sprintf("figs/esonar_ecdfs/%s.pdf", key$binomial),
+           esonar_ecdf,
+           width = 9,
+           height = 6)
+    ggsave(sprintf("figs/esonar_scatters/%s.pdf", key$binomial),
+           esonar_scatter,
+           width = 9,
+           height = 6)
+    
+    # lm results
+    # TODO: sensitivity lm slope, intercept, R2, mean Esonar, Esonar std err
+    tibble(foo = 1)
+  })

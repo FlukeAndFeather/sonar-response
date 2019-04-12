@@ -76,7 +76,7 @@ prey_cdf_tbl <- prey_data %>%
       # For odontocetes, fit log-normal
       log10Ep_mean <- mean(log10(data$`Energy (kJ)`))
       log10Ep_sd <- sd(log10(data$`Energy (kJ)`))
-      q_Ep_fun <- function(q) 10 ^ qnorm(q, 
+      q_Ep_fun <- function(p) 10 ^ qnorm(p, 
                                          mean = log10Ep_mean, 
                                          sd = log10Ep_sd)
       p_Ep_fun <- function(Ep) pnorm(log10(Ep),
