@@ -74,8 +74,10 @@ prey_cdf_tbl <- prey_data %>%
       p_Ep_fun <- filter(rorqual_prey_data, binomial == binom)$p_Ep[[1]]
     } else {
       # For odontocetes, fit log-normal
-      log10Ep_mean <- mean(log10(data$`Energy (kJ)`))
-      log10Ep_sd <- sd(log10(data$`Energy (kJ)`))
+      energy_kj <- log10(data$`Energy (kJ)`)
+      energy_perc <- data$Percent
+      log10Ep_mean <- Hmisc::wtd.mean(energy_kj, energy_perc)
+      log10Ep_sd <- Hmisc::wtd.var(energy_kj, energy_perc) ^ 0.5
       q_Ep_fun <- function(p) 10 ^ qnorm(p, 
                                          mean = log10Ep_mean, 
                                          sd = log10Ep_sd)
@@ -89,10 +91,10 @@ prey_cdf_tbl <- prey_data %>%
                                    q_Ep_fun(0.99), 
                                    length.out = 1e4),
                           p_Ep = p_Ep_fun(Ep),
-                      d_Ep = lead(p_Ep) - p_Ep) %>% 
+                          d_Ep = lead(p_Ep) - p_Ep) %>% 
       summarize(sum(Ep * d_Ep, na.rm = TRUE))
     mean_Ep <- mean_Ep_tbl[[1]]
-    
+
     lncdf_bounds <- q_Ep_fun(c(0.01, 0.99))
     lncdf_data <- tibble(Ep = seq(lncdf_bounds[1],
                                   lncdf_bounds[2],
