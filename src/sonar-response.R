@@ -94,76 +94,52 @@ Pout_fun <- function(u, l, m) {
 # CL_mult (uniform, -10 - 10)
 
 # Vectorized function for calculating Esonar for sensitivity analysis
-Esonar_fun <- function(M_kg, L_m, td_min, tf_min, Uf_ms) {
+Ein_fun <- function(td_min) {
+  function(rf_h, Ep_kJ) {
+    # Consumption power
+    Pin_kJh <- rf_h * Ep_kJ
+    Pin_W <- Pin_kJh / 3600
+    
+    # Consumption energy
+    Ein_kJ <- Pin_kJh * td_min / 60
+    
+    Ein_kJ
+  }
+}
+Eout_fun <- function(tf_min) {
+  function(delta_ff, CL) {
+    # Locomotion power
+    Pout_W <- delta_ff * CL
+    
+    # Locomotion energy
+    Eout_kJ <- Pout_W / 1000 * tf_min * 60
+    
+    Eout_kJ
+  }
+}
+Esonar_fun <- function(td_min, tf_min) {
   function(data) {
     with(data, 
          {
-           # Consumption and locomotion power
-           Pin_kJh <- rf_h * Ep_kJ
-           Pin_W <- Pin_kJh / 3600
-           ff_hz <- fs_fun(Uf_ms, L_m) * 10 ^ ff_mult
-           fb_hz <- fs_fun(U_b_ms, L_m)
-           Pout_W <- (ff_hz - fb_hz) * 10 ^ CL_mult * (1.46 + 0.0005 * M_kg)
+           Ein_kJ <- Ein_fun(td_min)(rf_h, Ep_kJ)
+           Eout_kJ <- Eout_fun(tf_min)(delta_ff, CL)
            
-           # Consumption and locomotion energy (based on behavioral responses)
-           Ein_kJ <- Pin_kJh * td_min / 60
-           Eout_kJ <- Pout_W / 1000 * tf_min * 60
-           
-           # Esonar in kJ
            Ein_kJ + Eout_kJ
          }
     )
   }
 }
 
-# Sensitivity analysis using pse package
-# List of model parameters
-# param <- c("rf_h", "Ep_kJ", "ff_mult", "CL_mult")
-# q <- list(rf_h = bw_rf_q,
-#           Ep_kJ = bw_Ep_q,
-#           ff_mult = qunif,
-#           CL_mult = qunif)
-# # List of distribution function parameters
-# q_arg <- list(rf_h = list(),
-#               Ep_kJ = list(),
-#               ff_mult = list(min = -1, max = 1),
-#               CL_mult = list(min = -1, max = 1))
-# # Latin hypercube sample of parameter space
-# bw_LHS <- pse::LHS(Esonar_fun, param, 500, q, q_arg, nboot = 50)
-# sens_result <- cbind(bw_LHS$data, bw_LHS$res)
-# colnames(sens_result)[length(colnames(sens_result))] <- "Esonar"
-# # ECDF of model outputs
-# ggplot(sens_result, aes(Esonar)) +
-#   stat_ecdf() +
-#   labs(x = "Energetic cost (kJ)",
-#        y = "Cumulative probability") +
-#   theme_minimal()
-# # Scatter of model outputs w.r.t. parameters
-# pse::plotscatter(bw_LHS)
-# sens_result %>% 
-#   gather(parameter, value, rf_h:CL_mult) %>% 
-#   ggplot(aes(value, Esonar)) +
-#   geom_point(size = 0.5) +
-#   geom_smooth(method = "lm",
-#               se = FALSE) +
-#   labs(x = "",
-#        y = "Energetic cost (kJ)") +
-#   facet_wrap(~ parameter, 
-#              scales = "free_x",
-#              strip.position = "bottom") +
-#   theme_minimal() +
-#   theme(strip.placement = "outside")
-
 # Scenarios -------------------------------------------------------------------
 ## Behavioral responses
 scenario_tbl <- tribble(
   ~binomial,                 ~t_d_min, ~t_f_min, ~U_f_ms,
-  "Phocoena phocoena",       3 * 60,   30,       4.5,
-  "Grampus griseus",         4 * 60,   30,       4.5,
-  "Ziphius cavirostris",     6 * 60,   30,       4.5,
-  "Physeter macrocephalus",  3 * 60,   30,       4.5,
-  "Megaptera novaeangliae",  2 * 60,   15,       3.5,
-  "Balaenoptera musculus",   1 * 60,   5,        2.5
+  "Phocoena phocoena",       60,       60,       5,
+  "Grampus griseus",         60,       60,       5,
+  "Ziphius cavirostris",     60,       60,       5,
+  "Physeter macrocephalus",  60,       60,       5,
+  "Megaptera novaeangliae",  60,       60,       5,
+  "Balaenoptera musculus",   60,       60,       5
 ) %>% 
   mutate(binomial = factor(binomial, levels = binom_levels)) %>% 
   ## Morphologies
@@ -177,33 +153,81 @@ scenario_tbl <- tribble(
   ## Ep probabilities
   left_join(select(Ep_tbl, binomial, q_Ep_fun), by = "binomial") 
 
-scenario_tbl %>% 
+Esonar_tbl <- scenario_tbl %>% 
   group_by(binomial) %>% 
   group_map(function(data, key) {
-    param <- c("rf_h", "Ep_kJ", "ff_mult", "CL_mult")
+    param <- c("rf_h", "Ep_kJ", "delta_ff", "CL")
     q <- list(rf_h = data$q_rf_fun[[1]],
               Ep_kJ = data$q_Ep_fun[[1]],
-              ff_mult = qunif,
-              CL_mult = qunif)
+              delta_ff = qgamma,
+              CL = qgamma)
     
     # List of distribution function parameters
+    ff_flight <- fs_fun(data$U_f_ms, data$Length_m)
+    ff_basal <- fs_fun(U_b_ms, data$Length_m)
+    delta_ff <- ff_flight - ff_basal
+    ff_shape <- 4
+    ff_scale <- delta_ff / ff_shape
+    CL <- 1.46 + 0.0005 * data$Mass_kg
+    CL_shape <- 4
+    CL_scale <- CL / CL_shape
     q_arg <- list(rf_h = list(),
                   Ep_kJ = list(),
-                  ff_mult = list(min = -1, max = 1),
-                  CL_mult = list(min = -1, max = 1))
+                  delta_ff = list(shape = ff_shape, scale = ff_scale),
+                  CL = list(shape = CL_shape, scale = CL_scale))
+    
+    param_args <- tibble(delta_ff = delta_ff,
+                         ff_shape = ff_shape,
+                         ff_scale = ff_scale,
+                         CL = CL,
+                         CL_shape = CL_shape,
+                         CL_scale = CL_scale)
+    
+    # Plots of delta_ff, CL distributions
+    ggplot(data.frame(x = c(0, qgamma(0.99, 
+                                      shape = ff_shape, 
+                                      scale = ff_scale))), 
+           aes(x)) +
+      stat_function(fun = dgamma, 
+                    args = q_arg[[3]]) +
+      geom_vline(xintercept = delta_ff,
+                 linetype = "dashed") +
+      labs(x = "Change in fluking frequency (Hz)",
+           y = "Probability density", 
+           title = key$binomial) +
+      theme_minimal()
+    ggsave(sprintf("figs/ff_density/%s.pdf", key$binomial),
+           width = 9,
+           height = 6)
+    ggplot(data.frame(x = c(0, qgamma(0.99, 
+                                      shape = CL_shape, 
+                                      scale = CL_scale))), 
+           aes(x)) +
+      stat_function(fun = dgamma, 
+                    args = q_arg[[4]]) +
+      geom_vline(xintercept = CL,
+                 linetype = "dashed") +
+      labs(x = "Locomotor cost (J/kg/stroke)",
+           y = "density",
+           title = key$binomial) +
+      theme_minimal()
+    ggsave(sprintf("figs/ff_density/%s.pdf", key$binomial),
+           width = 9,
+           height = 6)
     
     # Latin hypercube sample of parameter space
-    esonar_LHS <- Esonar_fun(data$Mass_kg, 
-                             data$Length_m,
-                             data$t_d_min,
-                             data$t_f_min,
-                             data$U_f_ms) %>% 
-      pse::LHS(param, 500, q, q_arg, nboot = 50)
-    sens_result <- cbind(esonar_LHS$data, esonar_LHS$res)
-    colnames(sens_result)[length(colnames(sens_result))] <- "Esonar"
+    model <- Esonar_fun(data$t_d_min,
+                        data$t_f_min)
+    esonar_LHS <- pse::LHS(model, param, 1e3, q, q_arg)
+    
+    sens_result <- esonar_LHS$data %>% 
+      mutate(Esonar_kJ = esonar_LHS$res[,1,1],
+             Eout_kJ = Eout_fun(data$t_f_min)(delta_ff, CL),
+             Ein_kJ = Ein_fun(data$t_d_min)(rf_h, Ep_kJ),
+             inout_ratio = Ein_kJ / Eout_kJ)
     
     # ECDF of model outputs
-    esonar_ecdf <- ggplot(sens_result, aes(Esonar)) +
+    esonar_ecdf <- ggplot(sens_result, aes(Esonar_kJ)) +
       stat_ecdf() +
       labs(x = "Energetic cost (kJ)",
            y = "Cumulative probability",
@@ -212,8 +236,8 @@ scenario_tbl %>%
     
     # Scatter of model outputs w.r.t. parameters
     esonar_scatter <- sens_result %>% 
-      gather(parameter, value, rf_h:CL_mult) %>% 
-      ggplot(aes(value, Esonar)) +
+      gather(parameter, value, rf_h:CL) %>% 
+      ggplot(aes(value, Esonar_kJ)) +
       geom_point(size = 0.5) +
       geom_smooth(method = "lm",
                   se = FALSE) +
@@ -236,7 +260,260 @@ scenario_tbl %>%
            width = 9,
            height = 6)
     
-    # lm results
-    # TODO: sensitivity lm slope, intercept, R2, mean Esonar, Esonar std err
-    tibble(foo = 1)
+    # Linear model results
+    esonar_linear <- sens_result %>%
+      # Normalize values using z-scores
+      mutate_at(vars(Esonar_kJ, rf_h, Ep_kJ, CL, delta_ff), 
+                function(x) (x - mean(x)) / sd(x)) %>% 
+      # Multiple regression
+      lm(Esonar_kJ ~ rf_h + Ep_kJ + CL + delta_ff, data = .)
+    
+    # Extract coefficients, p-values, and confidence intervals
+    esonar_coef <- coef(esonar_linear)
+    esonar_pval <- summary(esonar_linear)$coefficients[,4]
+    esonar_ci <- as_tibble(confint(esonar_linear, level = 0.95),
+                           rownames = "param")
+    colnames(esonar_ci)[2:3] <- c(ci_min, ci_max)
+      
+    # Combine and drop info for the intercept
+    lm_results <- cbind(esonar_ci, esonar_coef, esonar_pval)[-1,]
+    
+    esonar_results <- summarize(sens_result,
+                                mean_Esonar = mean(Esonar_kJ),
+                                median_Esonar = median(Esonar_kJ),
+                                iqr_Esonar = IQR(Esonar_kJ),
+                                median_inout = median(inout_ratio),
+                                inout_25 = quantile(inout_ratio, 0.25),
+                                inout_75 = quantile(inout_ratio, 0.75))
+    
+    cbind(lm_results, esonar_results, param_args)
   })
+
+# A plot with the normalized linear model coefficients
+coef_data <- Esonar_tbl %>% 
+  mutate(param = factor(param, 
+                        levels = c("CL",
+                                   "delta_ff",
+                                   "Ep_kJ",
+                                   "rf_h"),
+                        labels = c("C[L]",
+                                   "Delta*f[f]",
+                                   "E[p]",
+                                   "r[f]")))
+ggplot(coef_data, aes(x = binomial, y = esonar_coef, group = binomial)) +
+  geom_hline(aes(yintercept = mean_coef),
+             summarize(group_by(coef_data, param), 
+                       mean_coef = mean(esonar_coef)),
+             linetype = "dashed") +
+  geom_point(position = position_dodge(width = 0.4)) +
+  geom_errorbar(aes(ymin = `2.5 %`, ymax = `97.5 %`), 
+                width = 0.2, 
+                position = position_dodge(width = 0.4)) +
+  facet_grid(~ param,
+             labeller = label_parsed,
+             switch = "x") +
+  labs(x = "Parameter",
+       y = "Normalized coefficient") +
+  theme_classic() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank(),
+        legend.position = "none",
+        strip.background = element_blank(),
+        strip.placement = "outside")
+
+ggsave("figs/extreme_flight_coefs.pdf",
+       width = 9,
+       height = 6)
+
+# Case studies ----------------------------------------------------------------
+casestudy_tbl <- tribble(
+  ~binomial,                 ~t_d_min, ~t_f_min, ~U_f_ms,
+  "Ziphius cavirostris",     6 * 60,   30,       4.5,
+  "Balaenoptera musculus",   1 * 60,   5,        3
+) %>% 
+  mutate(binomial = factor(binomial, levels = binom_levels)) %>% 
+  ## Morphologies
+  left_join(select(morphologies,
+                   binomial,
+                   Mass_kg,
+                   Length_m),
+            by = "binomial") %>%
+  ## rf probabilities
+  left_join(select(rf_tbl, binomial, q_rf_fun), by = "binomial") %>% 
+  ## Ep probabilities
+  left_join(select(Ep_tbl, binomial, q_Ep_fun), by = "binomial") 
+
+Esonar_tbl2 <- casestudy_tbl %>% 
+  group_by(binomial) %>% 
+  group_map(function(data, key) {
+    param <- c("rf_h", "Ep_kJ", "delta_ff", "CL")
+    q <- list(rf_h = data$q_rf_fun[[1]],
+              Ep_kJ = data$q_Ep_fun[[1]],
+              delta_ff = qgamma,
+              CL = qgamma)
+    
+    # List of distribution function parameters
+    ff_flight <- fs_fun(data$U_f_ms, data$Length_m)
+    ff_basal <- fs_fun(U_b_ms, data$Length_m)
+    delta_ff <- ff_flight - ff_basal
+    ff_shape <- 4
+    ff_scale <- delta_ff / ff_shape
+    CL <- 1.46 + 0.0005 * data$Mass_kg
+    CL_shape <- 4
+    CL_scale <- CL / CL_shape
+    q_arg <- list(rf_h = list(),
+                  Ep_kJ = list(),
+                  delta_ff = list(shape = ff_shape, scale = ff_scale),
+                  CL = list(shape = CL_shape, scale = CL_scale))
+    
+    param_args <- tibble(delta_ff = delta_ff,
+                         ff_shape = ff_shape,
+                         ff_scale = ff_scale,
+                         CL = CL,
+                         CL_shape = CL_shape,
+                         CL_scale = CL_scale)
+    
+    # Plots of delta_ff, CL distributions
+    ggplot(data.frame(x = c(0, qgamma(0.99, 
+                                      shape = ff_shape, 
+                                      scale = ff_scale))), 
+           aes(x)) +
+      stat_function(fun = dgamma, 
+                    args = q_arg[[3]]) +
+      geom_vline(xintercept = delta_ff,
+                 linetype = "dashed") +
+      labs(x = "Change in fluking frequency (Hz)",
+           y = "Probability density", 
+           title = key$binomial) +
+      theme_minimal()
+    ggsave(sprintf("figs/ff_density/%s.pdf", key$binomial),
+           width = 9,
+           height = 6)
+    ggplot(data.frame(x = c(0, qgamma(0.99, 
+                                      shape = CL_shape, 
+                                      scale = CL_scale))), 
+           aes(x)) +
+      stat_function(fun = dgamma, 
+                    args = q_arg[[4]]) +
+      geom_vline(xintercept = CL,
+                 linetype = "dashed") +
+      labs(x = "Locomotor cost (J/kg/stroke)",
+           y = "density",
+           title = key$binomial) +
+      theme_minimal()
+    ggsave(sprintf("figs/ff_density/%s.pdf", key$binomial),
+           width = 9,
+           height = 6)
+    
+    # Latin hypercube sample of parameter space
+    model <- Esonar_fun(data$t_d_min,
+                        data$t_f_min)
+    esonar_LHS <- pse::LHS(model, param, 1e3, q, q_arg)
+    
+    sens_result <- esonar_LHS$data %>% 
+      mutate(Esonar_kJ = esonar_LHS$res[,1,1],
+             Eout_kJ = Eout_fun(data$t_f_min)(delta_ff, CL),
+             Ein_kJ = Ein_fun(data$t_d_min)(rf_h, Ep_kJ),
+             inout_ratio = Ein_kJ / Eout_kJ)
+    
+    # ECDF of model outputs
+    esonar_ecdf <- ggplot(sens_result, aes(Esonar_kJ)) +
+      stat_ecdf() +
+      labs(x = "Energetic cost (kJ)",
+           y = "Cumulative probability",
+           title = key$binomial) +
+      theme_minimal()
+    
+    # Scatter of model outputs w.r.t. parameters
+    esonar_scatter <- sens_result %>% 
+      gather(parameter, value, rf_h:CL) %>% 
+      ggplot(aes(value, Esonar_kJ)) +
+      geom_point(size = 0.5) +
+      geom_smooth(method = "lm",
+                  se = FALSE) +
+      labs(x = "",
+           y = "Energetic cost (kJ)",
+           title = key$binomial) +
+      facet_wrap(~ parameter, 
+                 scales = "free_x",
+                 strip.position = "bottom") +
+      theme_minimal() +
+      theme(strip.placement = "outside")
+    
+    # Save plots
+    ggsave(sprintf("figs/esonar_ecdfs/%s.pdf", key$binomial),
+           esonar_ecdf,
+           width = 9,
+           height = 6)
+    ggsave(sprintf("figs/esonar_scatters/%s.pdf", key$binomial),
+           esonar_scatter,
+           width = 9,
+           height = 6)
+    
+    # Linear model results
+    esonar_linear <- sens_result %>%
+      # Normalize values using z-scores
+      mutate_at(vars(Esonar_kJ, rf_h, Ep_kJ, CL, delta_ff), 
+                function(x) (x - mean(x)) / sd(x)) %>% 
+      # Multiple regression
+      lm(Esonar_kJ ~ rf_h + Ep_kJ + CL + delta_ff, data = .)
+    
+    # Extract coefficients, p-values, and confidence intervals
+    esonar_coef <- coef(esonar_linear)
+    esonar_pval <- summary(esonar_linear)$coefficients[,4]
+    esonar_ci <- as_tibble(confint(esonar_linear, level = 0.95),
+                           rownames = "param")
+    colnames(esonar_ci)[2:3] <- c(ci_min, ci_max)
+    
+    # Combine and drop info for the intercept
+    lm_results <- cbind(esonar_ci, esonar_coef, esonar_pval)[-1,]
+    
+    esonar_results <- summarize(sens_result,
+                                mean_Esonar = mean(Esonar_kJ),
+                                median_Esonar = median(Esonar_kJ),
+                                iqr_Esonar = IQR(Esonar_kJ),
+                                median_inout = median(inout_ratio),
+                                inout_25 = quantile(inout_ratio, 0.25),
+                                inout_75 = quantile(inout_ratio, 0.75))
+    
+    cbind(lm_results, esonar_results, param_args)
+  })
+
+
+# A plot with the normalized linear model coefficients
+coef_data2 <- Esonar_tbl2 %>% 
+  mutate(param = factor(param, 
+                        levels = c("CL",
+                                   "delta_ff",
+                                   "Ep_kJ",
+                                   "rf_h"),
+                        labels = c("C[L]",
+                                   "Delta*f[f]",
+                                   "E[p]",
+                                   "r[f]")))
+ggplot(coef_data, aes(x = binomial, y = esonar_coef, group = binomial)) +
+  geom_hline(aes(yintercept = mean_coef),
+             summarize(group_by(coef_data, param), 
+                       mean_coef = mean(esonar_coef)),
+             linetype = "dashed") +
+  geom_point(position = position_dodge(width = 0.4)) +
+  geom_errorbar(aes(ymin = `2.5 %`, ymax = `97.5 %`), 
+                width = 0.2, 
+                position = position_dodge(width = 0.4)) +
+  facet_grid(~ param,
+             labeller = label_parsed,
+             switch = "x") +
+  labs(x = "Parameter",
+       y = "Normalized coefficient") +
+  theme_classic() +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank(),
+        axis.title.x = element_blank(),
+        legend.position = "none",
+        strip.background = element_blank(),
+        strip.placement = "outside")
+
+ggsave("figs/extreme_flight_coefs.pdf",
+       width = 9,
+       height = 6)
