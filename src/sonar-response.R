@@ -321,10 +321,21 @@ ggplot(coef_data, aes(x = binomial, y = esonar_coef, group = binomial)) +
         legend.position = "none",
         strip.background = element_blank(),
         strip.placement = "outside")
-
 ggsave("figs/extreme_flight_coefs.pdf",
        width = 9,
        height = 6)
+
+# Ratio of energy in to energy out
+ggplot(Esonar_tbl, aes(binomial, median_inout)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = inout_25+1, ymax = inout_75),
+                width = 0.2) +
+  scale_y_log10(labels = log_labels) +
+  scale_x_discrete(labels = function(lbl) str_replace(lbl, " ", "\n")) +
+  labs(y = expression(E["in"]:E[out])) +
+  theme_classic() +
+  theme(axis.title.x = element_blank(),
+        axis.text.x = element_text(angle = 45, hjust = 1))
 
 # Case studies ----------------------------------------------------------------
 casestudy_tbl <- tribble(
