@@ -344,18 +344,29 @@ Esonar_tbl %>%
 scenario_tbl <- tribble(
   ~scenario,        ~t_f_min, ~U_f_ms,
   "no_flight",      0,        0,
-  "weak_flight",    5,        2.5,
+  "mild_flight",    5,        2.5,
   "strong_flight",  15,       3.5,
   "extreme_flight", 30,       5
   ) %>% 
+  mutate(scenario = factor(scenario,
+                           levels = c("no_flight", 
+                                      "mild_flight",
+                                      "strong_flight",
+                                      "extreme_flight"),
+                           labels = c("No flight",
+                                      "Mild flight",
+                                      "Strong flight",
+                                      "Extreme flight"))) %>% 
   crossing(binomial = c("Phocoena phocoena", 
                         "Grampus griseus", 
                         "Ziphius cavirostris", 
                         "Physeter macrocephalus", 
                         "Megaptera novaeangliae", 
-                        "Balaenoptera musculus"))
+                        "Balaenoptera musculus"),
+           beta = c(2.5, 3, 5),
+           bmr = factor(c("Kleiber", "Maresh")))
 
-thr_factory <- function(U_f_ms, tf_min, binom) {
+thr_factory <- function(U_f_ms, tf_min, binom, beta, bmr) {
   function(td_min) {
     # Morphologies
     morph_row <- filter(morphologies, binomial == binom)
@@ -390,10 +401,16 @@ thr_factory <- function(U_f_ms, tf_min, binom) {
     Esonar <- Eout_kJ + Ein_kJ
     
     # Daily FMR 
-    beta <- 3
-    daily_FMR <- beta * 293.1 * M_kg ^ 0.75
+    daily_bmr = if (bmr == "kleiber") {
+      293.1 * M_kg ^ 0.75
+    } else if (bmr == "maresh") {
+      581 * M_kg ^ 0.68
+    } else {
+      stop("Unspecified BMR calculation")
+    }
+    daily_FMR <- beta * daily_bmr
     
-    abs(0 - (Esonar - daily_FMR))
+    abs(Esonar - daily_FMR)
   }
 }
 
@@ -403,8 +420,32 @@ find_thr <- function(thr_fun) {
 
 thr_tbl <- scenario_tbl %>% 
   mutate(binomial = factor(binomial, levels = binom_levels),
-         thr_fun = pmap(list(U_f_ms, t_f_min, binomial), thr_factory),
+         thr_fun = pmap(list(U_f_ms, t_f_min, binomial, beta, bmr), 
+                        thr_factory),
          td_min_thr = map_dbl(thr_fun, find_thr),
          td_hr_thr = td_min_thr / 60,
          td_day_thr = td_hr_thr / 24) %>% 
   arrange(binomial, t_f_min)
+
+filter(thr_tbl, beta == 3) %>% 
+  ggplot(aes(binomial, 
+             td_min_thr, 
+             color = scenario,
+             shape = bmr)) +
+  geom_point(position = position_dodge(width = 0.6)) +
+  scale_x_discrete(labels = function(lbl) str_replace(lbl, " ", "\n")) +
+  scale_y_continuous(breaks = c(60, 60*24, 60*24*7, 60*24*7*2),
+                     labels = c("Hour", "Day", "Week", "2 Weeks"),
+                     trans = "log2") +
+  # remove green to avoid color-blind unfriendly palette
+  scale_color_manual(values = pal[-3]) +
+  labs(y = "Time displaced from feeding") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45,
+                                   hjust = 1),
+        axis.title = element_blank(),
+        legend.position = "bottom",
+        legend.title = element_blank())
+ggsave("figs/critical_threshold.pdf",
+       width = 9,
+       height = 6)
