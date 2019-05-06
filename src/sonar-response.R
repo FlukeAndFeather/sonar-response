@@ -46,24 +46,134 @@ morphologies <- read_csv("data/foragestats_combined_ko2.csv") %>%
 binom_levels <- levels(morphologies$binomial)
 
 # Prey
-load("data/prey_cdf_tbl.RData")
+load("data/prey_tbl.RData")
 
 # Feeding rates
 load("data/buzz_rf.RData")
 load("data/lunge_rf.RData")
 
 # Consumption power (Pin) -----------------------------------------------------
-Ep_tbl <- prey_cdf_tbl %>% 
-  select(binomial, Ep_kJ = mean_Ep, q_Ep_fun) %>% 
+Ep_tbl <- prey_tbl %>% 
+  select(binomial, 
+         meanEp_kJ, 
+         meanlnEp_lnkJ,
+         sdlnEp_lnkJ,
+         firstqEp_kJ,
+         thirdqEp_kJ) %>% 
   ungroup %>% 
   mutate(binomial = factor(binomial, levels = binom_levels))
+
+# Ep figure
+prey_tbl %>% 
+  mutate(binomial = factor(binomial, levels = binom_levels),
+         grouping = case_when(Family %in% c("Phocoenidae", "Delphinidae") ~ "Phocoenidae and Delphinidae",
+                              Family %in% c("Physeteridae", "Ziphiidae") ~ "Physeteridae and Ziphiidae",
+                              Family == "Balaenopteridae" ~ "Balaenopteridae")) %>% 
+  ggplot(aes(binomial, meanEp_kJ, color = grouping)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = firstqEp_kJ, ymax = thirdqEp_kJ),
+                width = 0.4) +
+  scale_x_discrete(labels = function(lbl) str_replace(lbl, " ", "\n")) +
+  scale_y_log10(labels = log_labels) +
+  scale_color_aaas() +
+  labs(y = "Energy per feeding event (kJ)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank(),
+        legend.position = "none")
+ggsave("figs/Ep.pdf",
+       width = 9,
+       height = 6)
+
 rf_tbl <- rbind(buzz_rf, lunge_rf) %>% 
-  select(binomial, rf_h = mean_rf, q_rf_fun) %>% 
+  select(binomial, 
+         rf_h = mean_rf, 
+         firstq_rf,
+         thirdq_rf,
+         q_rf_fun) %>% 
   ungroup %>% 
   mutate(binomial = factor(binomial, levels = binom_levels))
+
+# rf figure
+rbind(select(buzz_rf, binomial, mean_rf, firstq_rf, thirdq_rf),
+      select(lunge_rf, binomial, mean_rf, firstq_rf, thirdq_rf)) %>% 
+  left_join(select(prey_tbl, binomial, Family), by = "binomial") %>% 
+  mutate(binomial = factor(binomial, levels = binom_levels),
+         grouping = case_when(Family %in% c("Phocoenidae", "Delphinidae") ~ "Phocoenidae and Delphinidae",
+                              Family %in% c("Physeteridae", "Ziphiidae") ~ "Physeteridae and Ziphiidae",
+                              Family == "Balaenopteridae" ~ "Balaenopteridae")) %>% 
+  ggplot(aes(binomial, mean_rf, color = grouping)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = firstq_rf, ymax = thirdq_rf),
+                width = 0.4) +
+  scale_x_discrete(labels = function(lbl) str_replace(lbl, " ", "\n")) +
+  scale_color_aaas() +
+  labs(y = "Feeding rate (events / hour)") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.title.x = element_blank(),
+        legend.position = "none")
+ggsave("figs/rf.pdf",
+       width = 9,
+       height = 6)
+
 Pin_tbl <- inner_join(Ep_tbl, rf_tbl, by = "binomial") %>% 
-  mutate(Pin_kJ_h = Ep_kJ * rf_h) %>% 
-  left_join(select(morphologies, binomial, Family), by = "binomial")
+  mutate(Pin_kJ_h = meanEp_kJ * rf_h) %>% 
+  left_join(select(morphologies, binomial, Family, Mass_kg), by = "binomial")
+
+# Mass-specific consumption power
+calc_Pin <- function(rf_q, meanlnEp, sdlnEp) {
+  Pin <- pse::LHS(function(data) data$rf * data$Ep,
+                  factors = c("rf", "Ep"),
+                  N = 1e3,
+                  q = list(rf = rf_q,
+                           Ep = qlnorm),
+                  q.arg = list(rf = list(),
+                               Ep = list(meanlog = meanlnEp,
+                                         sdlog = sdlnEp)),
+                  res.names = "Pin_kJhr")$res
+  browser()
+  list(meanPin = mean(Pin),
+       sdPin = sd(Pin))
+}
+
+Pin_tbl2 <- Pin_tbl %>% 
+  transmute(Species = binomial, 
+            grouping = case_when(Family %in% c("Phocoenidae", "Delphinidae") ~ "Phocoenidae and Delphinidae",
+                                 Family %in% c("Physeteridae", "Ziphiidae") ~ "Physeteridae and Ziphiidae",
+                                 Family == "Balaenopteridae" ~ "Balaenopteridae"),
+            
+            Mass = Mass_kg,
+            `GMean Ep` = meanEp_kJ,
+            # What dhould I do for Ep variance?
+            `GSd Ep` = exp(sdlnEp_lnkJ),
+            `Mean rf` = rf_h,
+            # FIXME
+            `Sd rf` = map_dbl(q_rf_fun,
+                               ~ sd(.x(seq(0, 1, length.out = 1e3)))), 
+            `Mass-specific Ep` = meanEp_kJ / Mass_kg,
+            `Mass-specific rf` = rf_h / Mass_kg,
+            Pc = pmap(list(q_rf_fun,
+                           meanlnEp_lnkJ,
+                           sdlnEp_lnkJ),
+                      calc_Pin),
+            `Mean Pc` = map_dbl(Pc, "meanPin"),
+            `Sd Pc` = map_dbl(Pc, "sdPin"),
+            `Mass-specific Pc` = `Mean Pc` / Mass_kg,
+            Pc_low = `Mass-specific Pc` - `Sd Pc`,
+            Pc_high = `Mass-specific Pc` + `Sd Pc`)
+ggplot(Pin_tbl2, aes(Mass, `Mass-specific Pc`, color = grouping)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = Pc_low, ymax = Pc_high)) +
+  scale_x_log10(labels = log_labels) +
+  scale_y_log10(labels = log_labels,
+                breaks = 10 ^ c(0.5, 1, 1.5)) +
+  scale_color_aaas() +
+  labs(x = "Mass (kg)",
+       y = expression("Mass-specific " * italic(P[c]) * " (kJ/hour/kg)")) +
+  theme_minimal() +
+  theme(legend.position = "none")
+ggsave("figs/Pin.pdf", width = 6, height = 4)
 
 # Locomotion power (Pout) -----------------------------------------------------
 fs_fun <- function(U, L, La = 0.2, St = 0.3) {
@@ -106,10 +216,10 @@ Ein_fun <- function(td_min) {
     Ein_kJ
   }
 }
-Eout_fun <- function(tf_min) {
+Eout_fun <- function(tf_min, m) {
   function(delta_ff, CL) {
     # Locomotion power
-    Pout_W <- delta_ff * CL
+    Pout_W <- delta_ff * CL * m
     
     # Locomotion energy
     Eout_kJ <- Pout_W / 1000 * tf_min * 60
@@ -117,12 +227,12 @@ Eout_fun <- function(tf_min) {
     Eout_kJ
   }
 }
-Esonar_fun <- function(td_min, tf_min) {
+Esonar_fun <- function(td_min, tf_min, m) {
   function(data) {
     with(data, 
          {
            Ein_kJ <- Ein_fun(td_min)(rf_h, Ep_kJ)
-           Eout_kJ <- Eout_fun(tf_min)(delta_ff, CL)
+           Eout_kJ <- Eout_fun(tf_min, m)(delta_ff, CL)
            
            Ein_kJ + Eout_kJ
          }
@@ -131,6 +241,7 @@ Esonar_fun <- function(td_min, tf_min) {
 }
 
 # Scenarios -------------------------------------------------------------------
+## Extreme flight
 ## Behavioral responses
 scenario_tbl <- tribble(
   ~binomial,                 ~t_d_min, ~t_f_min, ~U_f_ms,
@@ -169,7 +280,7 @@ Esonar_tbl <- scenario_tbl %>%
     ff_shape <- 4
     ff_scale <- delta_ff / ff_shape
     # squared to get units of J/stroke
-    CL <- 1.46 + 0.0005 * data$Mass_kg^2
+    CL <- 1.46 + 0.0005 * data$Mass_kg
     CL_shape <- 4
     CL_scale <- CL / CL_shape
     q_arg <- list(rf_h = list(),
@@ -195,7 +306,12 @@ Esonar_tbl <- scenario_tbl %>%
                  linetype = "dashed") +
       labs(x = "Change in fluking frequency (Hz)",
            y = "Probability density", 
-           title = key$binomial) +
+           title = key$binomial,
+           caption = sprintf("U_b = %.1f m/s, U_f = %.1f m/s, f_b = %.2f Hz, f_f = %.2f Hz",
+                             U_b_ms,
+                             data$U_f_ms,
+                             ff_basal,
+                             ff_flight)) +
       theme_minimal()
     ggsave(sprintf("figs/ff_density/%s.pdf", key$binomial),
            width = 9,
@@ -212,18 +328,19 @@ Esonar_tbl <- scenario_tbl %>%
            y = "density",
            title = key$binomial) +
       theme_minimal()
-    ggsave(sprintf("figs/ff_density/%s.pdf", key$binomial),
+    ggsave(sprintf("figs/CL_density/%s.pdf", key$binomial),
            width = 9,
            height = 6)
     
     # Latin hypercube sample of parameter space
     model <- Esonar_fun(data$t_d_min,
-                        data$t_f_min)
+                        data$t_f_min,
+                        data$Mass_kg)
     esonar_LHS <- pse::LHS(model, param, 1e3, q, q_arg)
     
     sens_result <- esonar_LHS$data %>% 
       mutate(Esonar_kJ = esonar_LHS$res[,1,1],
-             Eout_kJ = Eout_fun(data$t_f_min)(delta_ff, CL),
+             Eout_kJ = Eout_fun(data$t_f_min, data$Mass_kg)(delta_ff, CL),
              Ein_kJ = Ein_fun(data$t_d_min)(rf_h, Ep_kJ),
              inout_ratio = Ein_kJ / Eout_kJ)
     
@@ -289,7 +406,7 @@ Esonar_tbl <- scenario_tbl %>%
                                 mean_inout = mean(inout_ratio),
                                 se_inout = sd(inout_ratio)/sqrt(n()))
     
-     
+     cbind(lm_results, esonar_results)
   })
 
 # A plot with the normalized linear model coefficients
@@ -374,11 +491,11 @@ thr_factory <- function(U_f_ms, tf_min, binom, beta, bmr) {
     L_m = morph_row$Length_m
     M_kg = morph_row$Mass_kg
     
-    # Eout parameters (don't really matter, see sensitivity analysis)
+    # Eout parameters 
     ff_flight <- fs_fun(U_f_ms, L_m)
     ff_basal <- fs_fun(U_b_ms, L_m)
     delta_ff <- ff_flight - ff_basal
-    CL <- 1.46 + 0.0005 * M_kg^2
+    CL <- 1.46 + 0.0005 * M_kg
     
     # Ein parameters
     rf_row <- filter(rf_tbl, binomial == binom)
@@ -391,7 +508,7 @@ thr_factory <- function(U_f_ms, tf_min, binom, beta, bmr) {
     
     # Model result
     # Eout
-    Pout_W <- delta_ff * CL
+    Pout_W <- delta_ff * CL * M_kg
     Eout_kJ <- Pout_W / 1000 * tf_min * 60
     # Ein
     Pin_kJh <- rf_h * Ep_kJ
@@ -401,9 +518,9 @@ thr_factory <- function(U_f_ms, tf_min, binom, beta, bmr) {
     Esonar <- Eout_kJ + Ein_kJ
     
     # Daily FMR 
-    daily_bmr = if (bmr == "kleiber") {
+    daily_bmr = if (bmr == "Kleiber") {
       293.1 * M_kg ^ 0.75
-    } else if (bmr == "maresh") {
+    } else if (bmr == "Maresh") {
       581 * M_kg ^ 0.68
     } else {
       stop("Unspecified BMR calculation")
@@ -443,7 +560,7 @@ filter(thr_tbl, beta == 3) %>%
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45,
                                    hjust = 1),
-        axis.title = element_blank(),
+        axis.title.x = element_blank(),
         legend.position = "bottom",
         legend.title = element_blank())
 ggsave("figs/critical_threshold.pdf",

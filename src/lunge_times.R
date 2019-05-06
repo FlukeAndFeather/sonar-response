@@ -42,7 +42,7 @@ tag_times <- function(data, key) {
   id <- key$ID
   data_paths <- find_data(id)
   tryCatch({
-    prh %<-% readMat(data_paths$prh_path)
+    prh <- readMat(data_paths$prh_path)
     tagonoff <- dn_to_posix(range(prh$DN[prh$tagon == 1]))
     tibble(tagon = tagonoff[1],
            tagoff = tagonoff[2])
@@ -67,11 +67,15 @@ lunge_tbl <- deployments %>%
  
 # Final product. A tibble with columns for whale ID, species, tag on/off time, 
 # hour of deployment, and feeding rate for that hour. Fills in missing hours.
+# Drops the leading part of the deployment less than an hour. For example, 
+# drop the first 0.5 hours of a 2.5 hour deployment. 
 # Interesting note: approximately 25% of hours have feeding rate of 0 across 
 # species.
 hourly_lunges <- lunge_tbl %>% 
-  drop_na() %>% 
-  mutate(hour = floor(as.numeric(lunge_dt - tagon, units = "hours"))) %>% 
+  drop_na() %>%
+  mutate(begin = tagon + (as.numeric(tagoff - tagon, units = "secs") %% 3600),
+         hour = floor(as.numeric(lunge_dt - begin, units = "hours"))) %>% 
+  filter(hour >= 0) %>% 
   group_by_at(vars(-lunge_dt)) %>% 
   summarize(rf_h = n()) %>%
   group_by_at(vars(-hour, -rf_h)) %>% 
@@ -106,6 +110,10 @@ hourly_lunges %>%
   })
 
 lunge_rf <- hourly_lunges %>% 
+  # change ba to bb
+  mutate(binomial = if_else(binomial == "Balaenoptera acutorostrata",
+                            "Balaenoptera bonaerensis",
+                            binomial)) %>% 
   group_by(binomial) %>% 
   group_map(function(data, key) {
     q_lunge <- function(p, ...) {
@@ -113,9 +121,13 @@ lunge_rf <- hourly_lunges %>%
     }
     
     tibble(mean_rf = mean(data$rf_h),
+           var_rf = var(data$rf_h),
            median_rf = median(data$rf_h),
+           firstq_rf = q_lunge(0.25),
+           thirdq_rf = q_lunge(0.75),
            q_rf_fun = list(q_lunge))
-  })
+  }) %>% 
+  ungroup
 
 # Save lunge_rf
 save(lunge_rf, file = "data/lunge_rf.RData")
