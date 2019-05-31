@@ -11,7 +11,7 @@ dn_to_posix <- function(dn) {
 # This will look different on Windows
 find_data <- function(id) {
   # Look for CATS
-  data_dir <- dir("/Volumes/COPYCATS/CATS/tag_data", 
+  data_dir <- dir("/Volumes/COPYCATSdat/CATS/tag_data", 
                   pattern = id, 
                   full.names = TRUE)
   list(prh_path = dir(data_dir,
@@ -46,8 +46,10 @@ tag_times <- function(data, key) {
     tagonoff <- dn_to_posix(range(prh$DN[prh$tagon == 1]))
     tibble(tagon = tagonoff[1],
            tagoff = tagonoff[2])
-  }, error = function(e) tibble(tagon = NA,
-                                tagoff = NA))
+  }, error = function(e) {
+    tibble(tagon = NA,
+           tagoff = NA)
+  })
 }
 
 # Deployment metadata. Starts with Paolo's lunge rate file. Filters down to
@@ -72,7 +74,7 @@ lunge_tbl <- deployments %>%
 # Interesting note: approximately 25% of hours have feeding rate of 0 across 
 # species.
 hourly_lunges <- lunge_tbl %>% 
-  drop_na() %>%
+  drop_na() %>% 
   mutate(begin = tagon + (as.numeric(tagoff - tagon, units = "secs") %% 3600),
          hour = floor(as.numeric(lunge_dt - begin, units = "hours"))) %>% 
   filter(hour >= 0) %>% 
@@ -121,7 +123,7 @@ lunge_rf <- hourly_lunges %>%
     }
     
     tibble(mean_rf = mean(data$rf_h),
-           var_rf = var(data$rf_h),
+           sd_rf = sd(data$rf_h),
            median_rf = median(data$rf_h),
            firstq_rf = q_lunge(0.25),
            thirdq_rf = q_lunge(0.75),
@@ -129,5 +131,6 @@ lunge_rf <- hourly_lunges %>%
   }) %>% 
   ungroup
 
-# Save lunge_rf
+# Save raw and summarized data
+save(hourly_lunges, file = "data/hourly_lunges.RData")
 save(lunge_rf, file = "data/lunge_rf.RData")

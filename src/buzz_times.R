@@ -57,7 +57,7 @@ buzz_rf <- buzz_tbl %>%
     }
     
     tibble(mean_rf = mean(data$rf_h),
-           var_rf = var(data$rf_h),
+           sd_rf = sd(data$rf_h),
            median_rf = median(data$rf_h),
            firstq_rf = q_buzz(0.25),
            thirdq_rf = q_buzz(0.75),
@@ -66,3 +66,4 @@ buzz_rf <- buzz_tbl %>%
   ungroup
 
 save(buzz_rf, file = "data/buzz_rf.RData")
+
