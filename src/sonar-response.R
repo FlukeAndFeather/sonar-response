@@ -50,6 +50,7 @@ load("data/prey_tbl.RData")
 
 # Feeding rates
 load("data/buzz_rf.RData")
+load("data/Md_buzz_rf.RData")
 load("data/lunge_rf.RData")
 
 # Consumption power (Pin) -----------------------------------------------------
@@ -85,7 +86,7 @@ ggsave("figs/Ep.pdf",
        width = 9,
        height = 6)
 
-rf_tbl <- rbind(buzz_rf, lunge_rf) %>% 
+rf_tbl <- rbind(buzz_rf, lunge_rf, Md_buzz_rf) %>% 
   select(binomial, 
          rf_h = mean_rf, 
          firstq_rf,
@@ -95,8 +96,8 @@ rf_tbl <- rbind(buzz_rf, lunge_rf) %>%
   mutate(binomial = factor(binomial, levels = binom_levels))
 
 # rf figure
-rbind(select(buzz_rf, binomial, mean_rf, firstq_rf, thirdq_rf),
-      select(lunge_rf, binomial, mean_rf, firstq_rf, thirdq_rf)) %>% 
+rbind(buzz_rf, lunge_rf, Md_buzz_rf) %>% 
+  select(binomial, mean_rf, firstq_rf, thirdq_rf) %>% 
   left_join(select(prey_tbl, binomial, Family), by = "binomial") %>% 
   mutate(binomial = factor(binomial, levels = binom_levels),
          grouping = case_when(Family %in% c("Phocoenidae", "Delphinidae") ~ "Phocoenidae and Delphinidae",
@@ -122,58 +123,111 @@ Pin_tbl <- inner_join(Ep_tbl, rf_tbl, by = "binomial") %>%
   left_join(select(morphologies, binomial, Family, Mass_kg), by = "binomial")
 
 # Mass-specific consumption power
-calc_Pin <- function(rf_q, meanlnEp, sdlnEp) {
-  Pin <- pse::LHS(function(data) data$rf * data$Ep,
-                  factors = c("rf", "Ep"),
-                  N = 1e3,
-                  q = list(rf = rf_q,
-                           Ep = qlnorm),
-                  q.arg = list(rf = list(),
-                               Ep = list(meanlog = meanlnEp,
-                                         sdlog = sdlnEp)),
-                  res.names = "Pin_kJhr")$res
-  browser()
-  list(meanPin = mean(Pin),
-       sdPin = sd(Pin))
+sample_Pin <- function(rf_q, meanlnEp, sdlnEp, n = 1e3) {
+  pse::LHS(function(data) data$rf * data$Ep,
+           factors = c("rf", "Ep"),
+           N = n,
+           q = list(rf = rf_q,
+                    Ep = qlnorm),
+           q.arg = list(rf = list(),
+                        Ep = list(meanlog = meanlnEp,
+                                  sdlog = sdlnEp)),
+           res.names = "Pin_kJhr")$res[,,1]
 }
 
-Pin_tbl2 <- Pin_tbl %>% 
-  transmute(Species = binomial, 
-            grouping = case_when(Family %in% c("Phocoenidae", "Delphinidae") ~ "Phocoenidae and Delphinidae",
-                                 Family %in% c("Physeteridae", "Ziphiidae") ~ "Physeteridae and Ziphiidae",
-                                 Family == "Balaenopteridae" ~ "Balaenopteridae"),
-            
-            Mass = Mass_kg,
-            `GMean Ep` = meanEp_kJ,
-            # What dhould I do for Ep variance?
-            `GSd Ep` = exp(sdlnEp_lnkJ),
-            `Mean rf` = rf_h,
-            # FIXME
-            `Sd rf` = map_dbl(q_rf_fun,
-                               ~ sd(.x(seq(0, 1, length.out = 1e3)))), 
-            `Mass-specific Ep` = meanEp_kJ / Mass_kg,
-            `Mass-specific rf` = rf_h / Mass_kg,
-            Pc = pmap(list(q_rf_fun,
-                           meanlnEp_lnkJ,
-                           sdlnEp_lnkJ),
-                      calc_Pin),
-            `Mean Pc` = map_dbl(Pc, "meanPin"),
-            `Sd Pc` = map_dbl(Pc, "sdPin"),
-            `Mass-specific Pc` = `Mean Pc` / Mass_kg,
-            Pc_low = `Mass-specific Pc` - `Sd Pc`,
-            Pc_high = `Mass-specific Pc` + `Sd Pc`)
-ggplot(Pin_tbl2, aes(Mass, `Mass-specific Pc`, color = grouping)) +
-  geom_point() +
-  geom_errorbar(aes(ymin = Pc_low, ymax = Pc_high)) +
-  scale_x_log10(labels = log_labels) +
-  scale_y_log10(labels = log_labels,
-                breaks = 10 ^ c(0.5, 1, 1.5)) +
-  scale_color_aaas() +
-  labs(x = "Mass (kg)",
-       y = expression("Mass-specific " * italic(P[c]) * " (kJ/hour/kg)")) +
-  theme_minimal() +
-  theme(legend.position = "none")
-ggsave("figs/Pin.pdf", width = 6, height = 4)
+# Figure 1, Pc is bimodally distributed
+# Using Bb as example
+bb_ep <- filter(prey_tbl, binomial == "Balaenoptera musculus")
+ep_inset <- ggplot(tibble(x = qlnorm(c(0.001, 0.99),
+                                     meanlog = bw_ep$meanlnEp_lnkJ,
+                                     sdlog = bw_ep$sdlnEp_lnkJ)),
+                   aes(x)) +
+  stat_function(fun = dlnorm, 
+                args = list(meanlog = bw_ep$meanlnEp_lnkJ,
+                            sdlog = bw_ep$sdlnEp_lnkJ)) +
+  scale_x_continuous(breaks = seq(0, 1e6, by = 250e3),
+                     labels = c(0, 
+                                expression(2.5 %*% 10^5), 
+                                expression(5 %*% 10^5), 
+                                expression(7.5 %*% 10^5), 
+                                expression(1 %*% 10^6))) +
+  labs(x = expression(italic(E[p]) ~~ (kJ))) +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank())
+bw_rf <- filter(rf_tbl, binomial == "Balaenoptera musculus")
+rf_inset <- ggplot(tibble(x = bw_rf$q_rf_fun[[1]](seq(0, 1, length.out = 1000))),
+                   aes(x)) + 
+  geom_histogram(binwidth = 1, 
+                 boundary = 0, 
+                 fill = "light gray", 
+                 color = "black") +
+  labs(x = expression(italic(r[f]) ~~ ("hr"^{-1}))) +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank())
+bw_Pc <- filter(Pin_tbl, binomial == "Balaenoptera musculus") %>% 
+  group_by(binomial) %>% 
+  group_map(function(data, key) {
+    with(data,
+         tibble(Pc = sample_Pin(q_rf_fun[[1]],
+                                meanlnEp_lnkJ[1],
+                                sdlnEp_lnkJ[1])))
+  }) %>% 
+  ungroup
+Pc_plot <- ggplot(bw_Pc, aes(Pc)) +
+  geom_histogram(bins = 30,
+                 boundary = 0, 
+                 fill = "light gray", 
+                 color = "black") +
+  geom_vline(aes(xintercept = mean(Pc)),
+             linetype = "dashed") +
+  scale_x_continuous(breaks = seq(0, 4e7, by = 1e7),
+                     labels = c(0,
+                                expression(1 %*% 10^7),
+                                expression(2 %*% 10^7),
+                                expression(3 %*% 10^7),
+                                expression(4 %*% 10^7)),
+                     name = expression(italic(P[c]) ~~ ("kJ" %.% "hr"^{-1}))) +
+  theme_classic() +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank(),
+        axis.title.y = element_blank(),
+        plot.margin = unit(c(1,2,1,1)/5, "in"))
+Pc_plot +
+  annotation_custom(ggplotGrob(ep_inset), 
+                    xmin = 1e7, xmax = 2.25e7,
+                    ymin = 160, ymax = 360) +
+  annotation_custom(ggplotGrob(rf_inset), 
+                    xmin = 2.35e7, xmax = 3.6e7,
+                    ymin = 160, ymax = 360)
+ggsave("figs/Pc.pdf", width = 9, height = 6)
+
+# Pc table
+Pc_tbl <- rf_tbl %>% 
+  left_join(Ep_tbl, by = "binomial") %>% 
+  left_join(select(morphologies, binomial, Mass_kg)) %>% 
+  group_by(binomial) %>% 
+  group_map(function(data, key) {
+    Pc <- sample_Pin(data$q_rf_fun[[1]],
+                     data$meanlnEp_lnkJ,
+                     data$sdlnEp_lnkJ)
+    tibble(meanEp_kJ = data$meanEp_kJ,
+           meanEp_kJkg = meanEp_kJ / data$Mass_kg,
+           iqr1Ep_kJ = data$firstqEp_kJ,
+           iqr3Ep_kJ = data$thirdqEp_kJ,
+           meanrf_h = data$rf_h,
+           meanrf_hkg = meanrf_h / data$Mass_kg,
+           iqr1rf_h = data$firstq_rf,
+           iqr3rf_h = data$thirdq_rf,
+           meanPc_kJh = mean(Pc),
+           meanPc_kJhkg = meanPc_kJh / data$Mass_kg,
+           iqr1Pc_kJh = quantile(Pc, 0.25),
+           iqr3Pc_kJh = quantile(Pc, 0.75))
+  })
+write_csv(Pc_tbl, "data/output/Pc.csv")
 
 # Locomotion power (Pout) -----------------------------------------------------
 fs_fun <- function(U, L, La = 0.2, St = 0.3) {
