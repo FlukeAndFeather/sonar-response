@@ -86,7 +86,7 @@ ggsave("figs/Ep.pdf",
        width = 9,
        height = 6)
 
-rf_tbl <- rbind(buzz_rf, lunge_rf, Md_buzz_rf) %>% 
+rf_tbl <- bind_rows(buzz_rf, lunge_rf, Md_buzz_rf) %>% 
   select(binomial, 
          rf_h = mean_rf, 
          firstq_rf,
@@ -96,7 +96,7 @@ rf_tbl <- rbind(buzz_rf, lunge_rf, Md_buzz_rf) %>%
   mutate(binomial = factor(binomial, levels = binom_levels))
 
 # rf figure
-rbind(buzz_rf, lunge_rf, Md_buzz_rf) %>% 
+bind_rows(buzz_rf, lunge_rf, Md_buzz_rf) %>% 
   select(binomial, mean_rf, firstq_rf, thirdq_rf) %>% 
   left_join(select(prey_tbl, binomial, Family), by = "binomial") %>% 
   mutate(binomial = factor(binomial, levels = binom_levels),
@@ -136,8 +136,8 @@ sample_Pin <- function(rf_q, meanlnEp, sdlnEp, n = 1e3) {
 }
 
 # Figure 1, Pc is bimodally distributed
-# Using Bb as example
-bb_ep <- filter(prey_tbl, binomial == "Balaenoptera musculus")
+# Using Bw as example
+bw_ep <- filter(prey_tbl, binomial == "Balaenoptera musculus")
 ep_inset <- ggplot(tibble(x = qlnorm(c(0.001, 0.99),
                                      meanlog = bw_ep$meanlnEp_lnkJ,
                                      sdlog = bw_ep$sdlnEp_lnkJ)),
@@ -185,6 +185,7 @@ Pc_plot <- ggplot(bw_Pc, aes(Pc)) +
   geom_vline(aes(xintercept = mean(Pc)),
              linetype = "dashed") +
   scale_x_continuous(breaks = seq(0, 4e7, by = 1e7),
+                     limits = c(0, 4e7),
                      labels = c(0,
                                 expression(1 %*% 10^7),
                                 expression(2 %*% 10^7),
@@ -295,35 +296,30 @@ Esonar_fun <- function(td_min, tf_min, m) {
 }
 
 # Scenarios -------------------------------------------------------------------
-## Extreme flight
-## Behavioral responses
-scenario_tbl <- tribble(
-  ~binomial,                 ~t_d_min, ~t_f_min, ~U_f_ms,
-  "Phocoena phocoena",       60,       30,       5,
-  "Grampus griseus",         60,       30,       5,
-  "Ziphius cavirostris",     60,       30,       5,
-  "Physeter macrocephalus",  60,       30,       5,
-  "Megaptera novaeangliae",  60,       30,       5,
-  "Balaenoptera musculus",   60,       30,       5
-) %>% 
-  mutate(binomial = factor(binomial, levels = binom_levels)) %>% 
-  ## Morphologies
-  left_join(select(morphologies,
-                   binomial,
-                   Mass_kg,
-                   Length_m),
-            by = "binomial") %>%
-  ## rf probabilities
+# Extreme flight
+# Behavioral responses
+scenario_tbl <- 
+  tribble(~scenario,     ~t_d_min, ~t_f_min, ~U_f_ms,
+          "flight",      60,       30,       5,
+          "consumption", 240,      10,       3.5) %>% 
+  crossing(select(morphologies,
+                  binomial,
+                  Mass_kg,
+                  Length_m) %>% 
+             filter(!binomial %in% c("Orcinus orca",
+                                     "Berardius bairdii"))) %>% 
+  # rf probabilities
   left_join(select(rf_tbl, binomial, q_rf_fun), by = "binomial") %>% 
-  ## Ep probabilities
-  left_join(select(Ep_tbl, binomial, q_Ep_fun), by = "binomial") 
+  # Ep probabilities
+  left_join(select(Ep_tbl, binomial, meanlnEp_lnkJ, sdlnEp_lnkJ), 
+            by = "binomial") 
 
 Esonar_tbl <- scenario_tbl %>% 
-  group_by(binomial) %>% 
+  group_by(scenario, binomial) %>% 
   group_map(function(data, key) {
     param <- c("rf_h", "Ep_kJ", "delta_ff", "CL")
     q <- list(rf_h = data$q_rf_fun[[1]],
-              Ep_kJ = data$q_Ep_fun[[1]],
+              Ep_kJ = qlnorm,
               delta_ff = qgamma,
               CL = qgamma)
     
@@ -338,7 +334,8 @@ Esonar_tbl <- scenario_tbl %>%
     CL_shape <- 4
     CL_scale <- CL / CL_shape
     q_arg <- list(rf_h = list(),
-                  Ep_kJ = list(),
+                  Ep_kJ = list(meanlog = data$meanlnEp_lnkJ, 
+                               sdlog = data$sdlnEp_lnkJ),
                   delta_ff = list(shape = ff_shape, scale = ff_scale),
                   CL = list(shape = CL_shape, scale = CL_scale))
     
@@ -390,7 +387,8 @@ Esonar_tbl <- scenario_tbl %>%
     model <- Esonar_fun(data$t_d_min,
                         data$t_f_min,
                         data$Mass_kg)
-    esonar_LHS <- pse::LHS(model, param, 1e3, q, q_arg)
+    tryCatch(esonar_LHS <- pse::LHS(model, param, 1e2, q, q_arg),
+             error = function(e) browser())
     
     sens_result <- esonar_LHS$data %>% 
       mutate(Esonar_kJ = esonar_LHS$res[,1,1],
@@ -423,11 +421,11 @@ Esonar_tbl <- scenario_tbl %>%
       theme(strip.placement = "outside")
     
     # Save plots
-    ggsave(sprintf("figs/esonar_ecdfs/%s.pdf", key$binomial),
+    ggsave(sprintf("figs/esonar_ecdfs/%s_%s.pdf", key$scenario, key$binomial),
            esonar_ecdf,
            width = 9,
            height = 6)
-    ggsave(sprintf("figs/esonar_scatters/%s.pdf", key$binomial),
+    ggsave(sprintf("figs/esonar_scatters/%s_%s.pdf", key$scenario, key$binomial),
            esonar_scatter,
            width = 9,
            height = 6)
@@ -465,6 +463,7 @@ Esonar_tbl <- scenario_tbl %>%
 
 # A plot with the normalized linear model coefficients
 coef_data <- Esonar_tbl %>% 
+  ungroup %>% 
   mutate(param = factor(param, 
                         levels = c("CL",
                                    "delta_ff",
@@ -473,43 +472,52 @@ coef_data <- Esonar_tbl %>%
                         labels = c("C[L]",
                                    "Delta*f[f]",
                                    "E[p]",
-                                   "r[f]")))
-# Color palette: Color Brewer Set1. Six classes, dropping the yellow.
-pal <- RColorBrewer::brewer.pal(7, "Set1")[-6]
-ggplot(coef_data, aes(x = binomial, y = esonar_coef, color = binomial)) +
-  geom_hline(aes(yintercept = mean_coef),
-             summarize(group_by(coef_data, param), 
-                       mean_coef = mean(esonar_coef)),
-             linetype = "dashed") +
-  geom_point(position = position_dodge(width = 0.4)) +
-  geom_errorbar(aes(ymin = ci_min, ymax = ci_max), 
-                width = 0.2, 
-                position = position_dodge(width = 0.4)) +
-  scale_color_manual(values = pal) +
-  facet_grid(~ param,
-             labeller = label_parsed,
-             switch = "x") +
-  labs(x = "Parameter",
-       y = "Normalized coefficient") +
-  theme_classic() +
-  theme(axis.text.x = element_blank(),
-        axis.ticks.x = element_blank(),
-        axis.title.x = element_blank(),
-        legend.position = "bottom",
-        legend.title = element_blank(),
-        strip.background = element_blank(),
-        strip.placement = "outside")
-ggsave("figs/extreme_flight_coefs.pdf",
+                                   "r[f]"))) %>% 
+  left_join(select(morphologies, binomial, Family),
+            by = "binomial") %>% 
+  mutate(grouping = case_when(Family %in% c("Phocoenidae", "Delphinidae") ~ "Phocoenidae and Delphinidae",
+                              Family %in% c("Physeteridae", "Ziphiidae") ~ "Physeteridae and Ziphiidae",
+                              Family == "Balaenopteridae" ~ "Balaenopteridae"))
+
+coef_plots <- coef_data %>% 
+  group_by(scenario) %>% 
+  group_split() %>% 
+  map(~ ggplot(.x, aes(x = binomial, y = esonar_coef, color = grouping)) +
+        geom_hline(aes(yintercept = mean_coef),
+                   summarize(group_by(.x, param), 
+                             mean_coef = mean(esonar_coef)),
+                   linetype = "dashed") +
+        geom_point(position = position_dodge(width = 0.4)) +
+        geom_errorbar(aes(ymin = ci_min, ymax = ci_max), 
+                      width = 0.2, 
+                      position = position_dodge(width = 0.4)) +
+        scale_color_brewer(palette = "Dark2") +
+        facet_grid(~ param,
+                   labeller = label_parsed,
+                   switch = "x") +
+        scale_y_continuous(limits = c(-0.25, 1.0),
+                           breaks = seq(-0.25, 1.0, by = 0.25)) +
+        labs(y = "Normalized coefficient") +
+        theme_classic() +
+        theme(axis.text.x = element_blank(),
+              axis.ticks.x = element_blank(),
+              axis.title.x = element_blank(),
+              legend.position = "none",
+              legend.title = element_blank(),
+              strip.background = element_blank(),
+              strip.placement = "outside"))
+coef_plots[[1]] + coef_plots[[2]] + patchwork::plot_layout(nrow = 1)
+ggsave("figs/flight_coefs.pdf",
        width = 9,
        height = 6)
-
+      
 # A table of the ratio of energy in to energy out
 Esonar_tbl %>% 
-  group_by(binomial) %>% 
+  group_by(binomial, scenario) %>% 
   slice(1) %>% 
   ungroup %>% 
-  select(binomial, mean_inout, se_inout) %>% 
-  write_csv("figs/extreme_flight_inout.csv")
+  select(binomial, scenario, mean_inout, se_inout) %>% 
+  write_csv("figs/flight_inout.csv")
 
 # Critical thresholds ---------------------------------------------------------
 scenario_tbl <- tribble(
