@@ -100,17 +100,19 @@ ggplot(Md_tbl, aes(x = rf)) +
   theme_minimal()
 
 # Md rf (made to match buzz_rf, see buzz_times.R)
-q_buzz <- function(p, ...) {
-  quantile(Md_tbl$rf, probs = p)
-}
 Md_buzz_rf <- Md_tbl %>% 
   mutate(binomial = "Mesoplodon densirostris") %>% 
   group_by(binomial) %>% 
-  summarize(mean_rf = mean(rf),
-            sd_rf = sd(rf),
-            median_rf = median(rf),
-            firstq_rf = q_buzz(0.25),
-            thirdq_rf = q_buzz(0.75),
-            q_rf_fun = list(q_buzz))
+  group_map(function(data, key) {
+    q_buzz <- function(p, ...) {
+      quantile(data$rf, probs = p)
+    }
+    tibble(mean_rf = mean(data$rf),
+           sd_rf = sd(data$rf),
+           median_rf = median(data$rf),
+           firstq_rf = q_buzz(0.25),
+           thirdq_rf = q_buzz(0.75),
+           q_rf_fun = list(q_buzz))
+  })
 
 save(Md_buzz_rf, file = "data/Md_buzz_rf.RData")
