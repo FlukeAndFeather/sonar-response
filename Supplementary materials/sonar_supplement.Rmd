@@ -1,0 +1,610 @@
+---
+title: "Supporting Information"
+subtitle: "Large baleen and small toothed whales face greatest energetic consequences from sonar disturbance"
+author: 
+ - "Max F. Czapanskiy"
+ - "Matthew S. Savoca"
+ - "William T. Gough"
+ - "Paolo S. Segre"
+ - "Danuta M. Wisniewska"
+ - "David E. Cade"
+ - "Jeremy A. Goldbogen"
+date: "3/5/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, cache = TRUE)
+library(cowplot)
+library(knitr)
+library(kableExtra)
+library(scales)
+library(tidyverse)
+```
+
+## Data
+
+The sonar response energetic model uses three types of data: feeding rates, prey quality, and morphology. The feeding rate, morphology, and odontocete prey quality data were previously published by Goldbogen et al. (2019) <doi:10.1126/science.aax9044>. See supplement "Description of how rorqual prey resources were calculated" for description of rorqual prey quality data. 
+
+```{r data}
+prey <- readRDS("prey_tbl.RDS")
+feeding <- readRDS("feeding_tbl.RDS")
+morphology <- readRDS("morpho_tbl.RDS")
+
+cbf_palette <- c(
+  # blue
+  "Delphinidae and Phocoenidae" = rgb(0, 114, 178, maxColorValue = 255),  
+  # vermillion
+  "Physeteridae and Ziphiidae" = rgb(213, 94, 0, maxColorValue = 255),
+  # bluish green
+  "Balaenopteridae" = rgb(0, 158, 115, maxColorValue = 255)
+) 
+
+morphology %>% 
+  mutate(species = cell_spec(species, "latex", italic = TRUE)) %>% 
+  select(Species = species, Family = family, Clade = clade, 
+         `Length (m)` = length_m, `Mass (kg)` = mass_kg, 
+         Abbreviation = abbr) %>% 
+  kable("latex", booktabs = TRUE, escape = FALSE) %>%
+  kable_styling(latex_options = c("scale_down"))
+```
+
+For the model, feeding rate ($r_f$) and energy from prey per feeding event ($E_p$) distributions are empirical and lognormal, respectively. The following table combines the three data sources and provides quantile functions for $r_f$ and $E_p$ for each species.
+
+```{r combine_data}
+# Creates a quantile function based on the log-mean and log-sd of each species'
+#   prey distribution
+prey_fun <- prey %>% 
+  mutate(q_Ep_kJ = map2(meanlnEp_lnkJ, 
+                        sdlnEp_lnkJ, 
+                        ~ function(p) qlnorm(p, .x, .y)))
+# Creates an empirical quantile function for each species
+feeding_fun <- feeding %>% 
+  group_by(species) %>% 
+  summarize(rf_h = list(rf_h)) %>% 
+  mutate(q_rf_h = map(rf_h, ~ function(p) quantile(.x, p)))
+# Combines the three data sources
+species_data <- morphology %>% 
+  left_join(prey_fun, by = "species") %>% 
+  left_join(feeding_fun, by = "species")
+```
+
+## Baseline rate of energy acquisition
+
+The baseline rate of energy acquisition ($\frac{d}{dt}E_a$) was modeled as the product of $r_f$ and $E_p$. The resulting distribution for blue whales (*Balaenoptera musculus*) is presented in the main manuscript (Fig. 1). The distributions for all species are below.
+
+```{r ddtEa}
+# Adapted from https://stackoverflow.com/a/45867076
+label_sci <- function(breaks) {
+  ifelse(
+    breaks == 0, 
+    "0", 
+    parse(text = gsub("[+]", "", gsub("e", " %*% 10^", scientific(breaks))))
+  )
+}
+
+# Plot the lognormal distribution of energy from prey
+Ep_plot <- function(q_Ep_kJ, meanlnEp_lnkJ, sdlnEp_lnkJ) {
+  tibble(x = q_Ep_kJ(c(0.001, 0.99))) %>% 
+    ggplot(aes(x)) +
+    stat_function(
+      fun = dlnorm,
+      args = list(meanlog = meanlnEp_lnkJ,
+                  sdlog = sdlnEp_lnkJ),
+      n = 1e3
+    ) +
+    expand_limits(x = 0) +
+    scale_x_continuous(expression(italic(E[p]) ~ (kJ)), 
+                       labels = label_sci) +
+    theme_classic(base_size = 8) +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.y = element_blank(),
+          axis.title.x = element_text(size = 8))
+}
+
+# Plot the empirical distribution of feeding rates
+rf_plot <- function(q_rf_h) {
+  tibble(x = q_rf_h(seq(0, 1, length.out = 1000))) %>% 
+    ggplot(aes(x)) + 
+    geom_histogram(bins = 20, 
+                   boundary = 0, 
+                   fill = "light gray", 
+                   color = "black",
+                   size = 0.2) +
+    scale_x_continuous(expression(italic(r[f]) ~ ("hr"^{-1}))) +
+    theme_classic(base_size = 8) +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.y = element_blank(),
+          axis.title.x = element_text(size = 8))
+}
+
+# Plot the baseline rate of energy acquisition by sampling Ep and rf
+ddtEa_plot <- function(species, q_Ep_kJ, q_rf_h, caption = TRUE) {
+  ddtEa <- tibble(p_Ep = runif(1e3),
+                  p_rf = runif(1e3)) %>% 
+    mutate(Ep = q_Ep_kJ(p_Ep),
+           rf = q_rf_h(p_rf),
+           ddtEa = Ep * rf)
+  
+  ddtEa_caption <- if (caption) {
+    element_text(face = "italic")
+  } else {
+    element_blank()
+  }
+  
+  ddtEa %>% 
+    filter(ddtEa < quantile(ddtEa, 0.99)) %>% 
+    ggplot(aes(ddtEa)) +
+    geom_histogram(bins = 30,
+                   boundary = 0, 
+                   fill = "light gray", 
+                   color = "black") +
+    geom_vline(aes(xintercept = mean(ddtEa)),
+               linetype = "dashed") +
+    scale_x_continuous(expression(italic(frac(d, dt) * E[a]) ~~ ("kJ" ~ "hr"^{-1})),
+                       labels = label_sci) +
+    labs(caption = species) +
+    theme_classic(base_size = 12) +
+    theme(axis.text.y = element_blank(),
+          axis.ticks.y = element_blank(),
+          axis.title.y = element_blank(),
+          axis.title.x = element_text(size = 8),
+          plot.caption = ddtEa_caption) 
+}
+
+# Combine plots (Ep and rf as insets in d/dt Ea)
+arrange_ddtEa <- function(species, q_Ep_kJ, meanlnEp_lnkJ, sdlnEp_lnkJ, q_rf_h, 
+                          caption = TRUE, ...) {
+  Ep <- Ep_plot(q_Ep_kJ, meanlnEp_lnkJ, sdlnEp_lnkJ)
+  rf <- rf_plot(q_rf_h)
+  ddtEa <- ddtEa_plot(species, q_Ep_kJ, q_rf_h, caption)
+  
+  # Figure out where the insets should go
+  scales <- layer_scales(ddtEa)
+  xlim <- scales$x$get_limits()
+  ylim <- scales$y$get_limits()
+  grid_to_data <- function(xmin, xmax, ymin, ymax) {
+    c(xmin = xlim[1] + xmin * (xlim[2] - xlim[1]),
+      xmax = xlim[1] + xmax * (xlim[2] - xlim[1]),
+      ymin = ylim[1] + ymin * (ylim[2] - ylim[1]),
+      ymax = ylim[1] + ymax * (ylim[2] - ylim[1]))
+  }
+  Ep_coord <- grid_to_data(0.1, 0.535, 0.45, 0.95)
+  rf_coord <- grid_to_data(0.555, 0.99, 0.45, 0.95)
+  ddtEa +
+    annotation_custom(ggplotGrob(Ep), 
+                      xmin = Ep_coord["xmin"], xmax = Ep_coord["xmax"],
+                      ymin = Ep_coord["ymin"], ymax = Ep_coord["ymax"]) +
+    annotation_custom(ggplotGrob(rf), 
+                      xmin = rf_coord["xmin"], xmax = rf_coord["xmax"],
+                      ymin = rf_coord["ymin"], ymax = rf_coord["ymax"])
+}
+
+# Figure 1 of main text
+species_data %>% 
+  filter(abbr == "Bm") %>% 
+  pmap(arrange_ddtEa, caption = FALSE)
+
+ddtEa_plots <- species_data %>% 
+  select(species, q_Ep_kJ, meanlnEp_lnkJ, sdlnEp_lnkJ, q_rf_h) %>% 
+  pmap(arrange_ddtEa)
+walk(ddtEa_plots, print)
+```
+
+$r_f$ and mass-specific $E_p$ across species (Figure 2 in main text).
+
+```{r fig2}
+fig2data <- species_data %>% 
+  mutate(
+    rf_mean = map_dbl(rf_h, mean),
+    rf_1q = map_dbl(rf_h, quantile, p = 0.25),
+    rf_3q = map_dbl(rf_h, quantile, p = 0.75),
+    Epmass_mean = exp(meanlnEp_lnkJ) / mass_kg,
+    Epmass_1q = map2_dbl(meanlnEp_lnkJ, sdlnEp_lnkJ, ~ qlnorm(0.25, .x, .y)) / mass_kg,
+    Epmass_3q = map2_dbl(meanlnEp_lnkJ, sdlnEp_lnkJ, ~ qlnorm(0.75, .x, .y)) / mass_kg,
+    abbr = factor(abbr, levels = .$abbr)
+  )
+# Fig 2a
+fig2a <- ggplot(fig2data, aes(abbr, rf_mean)) +
+  geom_pointrange(aes(ymin = rf_1q, ymax = rf_3q, 
+                      color = group, shape = group)) +
+  scale_color_manual(values = cbf_palette) +
+  labs(x = "", y = expression(italic(r[f])~~(hr^{-1}))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+# Fig 2b
+fig2b <- ggplot(fig2data, aes(abbr, Epmass_mean)) +
+  geom_pointrange(aes(ymin = Epmass_1q, ymax = Epmass_3q, 
+                      color = group, shape = group)) +
+  scale_color_manual(values = cbf_palette) +
+  labs(x = "", y = expression("Mass-specific"~~italic(E[p])~~(kJ~kg^{-1}))) +
+  theme_classic() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+# Fig 2
+plot_grid(fig2a, fig2b, labels = "AUTO")
+```
+
+## Energy expenditure due to elevated locomotion
+
+Elevated locomotion is defined here as a speed increase ($U_f$) for a duration ($t_f$). The energetic cost associated with this behavior was modeled as the product of the increase in stroking frequency ($\Delta f$ in Hz), the mass-specific locomotor cost ($C_L$ in kJ stroke^-1^ kg^-1^), and the individual's mass. To incorporate uncertainty, both $\Delta f$ and $C_L$ were treated as gamma distributed variables with a mean equal to the best estimate and a shape parameter of 4. The following figure shows the estimated increase in mass-specific energy expenditure when $U_f$ is 5 m s^-1^. 
+
+```{r ddtEe}
+# Predict the change in fluking frequency (deltaff) and mass-specific locomotor
+# costs (CL)
+U_cruise_ms <- 1.5
+U_flight_ms <- 5
+# Change in fluking frequency in strokes per hour
+ff_fun <- function(U, L, La = 0.2, St = 0.3) {
+  St * U / L / La * 3600
+}
+# Mass-specific locomotor cost in kJ / kg / stroke
+CL_fun <- function(m) (1.46 + 0.0005 * m) / 1000
+
+# Estimate the quantile of mass-specific ddtEe (product of two gammas)
+q_ddtEe <- function(p, deltaff_shape, deltaff_scale, CL_shape, CL_scale) {
+  pmap_dbl(
+    list(deltaff_shape, deltaff_scale, CL_shape, CL_scale),
+    function(deltaff_shape, deltaff_scale, CL_shape, CL_scale) {
+      tibble(
+        deltaff = rgamma(1e6, shape = deltaff_shape, scale = deltaff_scale),
+        CL = rgamma(1e6, shape = CL_shape, scale = CL_scale)
+      ) %>% 
+        mutate(ddtEe = deltaff * CL) %>% 
+        pull(ddtEe) %>% 
+        quantile(p)
+    })
+}
+
+# Plot median and IQR of mass-specific ddtEe
+species_data %>% 
+  mutate(
+    ff_cruise = ff_fun(U_cruise_ms, length_m),
+    ff_flight = ff_fun(U_flight_ms, length_m),
+    mean_deltaff = ff_flight - ff_cruise,
+    deltaff_shape = 4,
+    deltaff_scale = mean_deltaff / deltaff_shape,
+    mean_CL = CL_fun(mass_kg),
+    CL_shape = 4,
+    CL_scale = mean_CL / CL_shape,
+    ddtEe_1q = q_ddtEe(0.25, deltaff_shape, deltaff_scale, CL_shape, CL_scale),
+    ddtEe_med = q_ddtEe(0.5, deltaff_shape, deltaff_scale, CL_shape, CL_scale),
+    ddtEe_3q = q_ddtEe(0.75, deltaff_shape, deltaff_scale, CL_shape, CL_scale),
+    species = factor(species, levels = species[order(length_m)])
+  ) %>% 
+  ggplot(aes(x = species, y = ddtEe_med)) +
+  geom_pointrange(aes(ymin = ddtEe_1q, ymax = ddtEe_3q)) +
+  coord_flip() +
+  labs(y = expression("Mass-specific " ~~ italic(frac(d, dt) * E[e]) ~~ ("kJ" ~ "hr"^{-1} ~ "kg"^{-1}))) +
+  theme_classic(base_size = 12) +
+  theme(axis.text.y = element_text(face = "italic"),
+        axis.title.x = element_text(size = 8),
+        axis.title.y = element_blank()) 
+```
+
+## Sensitivity analysis
+
+We tested the model's sensitivity to energy acquisition ($E_p$, $r_f$) and expenditure ($\Delta f$, $C_L$) parameters in two behavioral scenarios. The scenarios were chosen to emphasize increased energy expenditure ($t_d$ = 1 hour, $t_f$ = 0.5 hours, $U_f$ = 5 m s^-1^) or lost consumption ($t_d$ = 4 hours, $t_f$ = 0.25 hours, $U_f$ = 3.5 m s^-1^). 
+
+```{r sensitivity1}
+# Energetic cost of sonar exposure
+Esonar_fun <- function(td_hr, tf_hr, rf, Ep, delta_ff, CL, mass) {
+  ddtEa <- Ep * rf # kJ * hr-1 = kJ hr-1
+  ddtEe <- delta_ff * CL * mass # strokes hr-1 * kJ kg-1 stroke-1 * kg = kJ hr-1
+  ddtEa * td_hr + ddtEe * tf_hr # kJ hr-1 * hr + kJ hr-1 * hr = kJ
+}
+# Run a scenario
+run_scenario <- function(species, scenario,
+                         td_hr, tf_hr, Uf_ms,
+                         q_rf_h, meanlnEp_lnkJ, sdlnEp_lnkJ, 
+                         length_m, mass_kg, ...) {
+  shape_arg <- 4
+  delta_ff <- ff_fun(Uf_ms, length_m) - ff_fun(1.5, length_m)
+  CL <- CL_fun(mass_kg)
+  
+  # Parameter list
+  param <- c("rf_h", "Ep_kJ", "delta_ff", "CL")
+  # Quantile functions
+  q <- list(rf_h = q_rf_h,
+            Ep_kJ = qlnorm,
+            delta_ff = qgamma,
+            CL = qgamma)
+  # Parameter arguments
+  q_arg <- list(
+    rf_h = list(),
+    Ep_kJ = list(meanlog = meanlnEp_lnkJ, 
+                 sdlog = sdlnEp_lnkJ),
+    delta_ff = list(shape = shape_arg, scale = delta_ff / shape_arg),
+    CL = list(shape = shape_arg, scale = CL / shape_arg)
+  )
+  # Generate Latin hypercube samples and run model
+  pse::LHS(model = NULL, param, 5e2, q, q_arg)$data %>% 
+    mutate(
+      esonar_kJ = Esonar_fun(td_hr, tf_hr, rf_h, Ep_kJ, delta_ff, CL, mass_kg)
+    ) %>% 
+    {cbind(tibble(species, scenario, td_hr, tf_hr, Uf_ms), .)}
+}
+
+# Run both behavioral scenarios
+sensitivity_tbl <- 
+  tribble(~scenario,     ~td_hr, ~tf_hr, ~Uf_ms,
+          "flight",      1,      0.5,    5,
+          "consumption", 4,      0.25,   3.5) %>% 
+  crossing(species_data) %>% 
+  pmap_dfr(run_scenario)
+```
+
+Model sensitivity to each parameter was quantified as the coefficient in the linear model $z(E) \sim z(r_f) + z(E_p) + z(\Delta f) + z(C_L)$ where $z()$ is the z-score. Results by guild are presented in the main text (Fig. 3). The following are the results for each species.
+
+```{r sensitivity2}
+# Normalize parameters by z-score
+zscore <- function(x) (x - mean(x)) / sd(x)
+sensitivity_coef <- sensitivity_tbl %>% 
+  group_by(species, scenario) %>% 
+  mutate_at(vars(esonar_kJ, rf_h, Ep_kJ, delta_ff, CL), zscore) %>% 
+  group_modify(function(data, keys) {
+    # Fit linear model
+    esonar_lm <- lm(esonar_kJ ~ rf_h + Ep_kJ + delta_ff + CL, data = data) 
+    # Extract coefficients and confidence intervals
+    esonar_coef <- coef(esonar_lm)
+    esonar_ci <- as_tibble(confint(esonar_lm, level = 0.95),
+                           rownames = "param")
+    colnames(esonar_ci)[2:3] <- c("ci_min", "ci_max")
+    
+    cbind(esonar_coef, esonar_ci) %>% 
+      select(param, esonar_coef, ci_min, ci_max) %>% 
+      # drop intercept
+      slice(-1)
+  }) %>% 
+  ungroup() %>% 
+  mutate(
+    param = factor(
+      param, 
+      levels = c("rf_h", "Ep_kJ", "delta_ff", "CL"),
+      labels = c("r[f]", "E[p]", "Delta*f", "C[L]")
+    ),
+    species = factor(
+      species,
+      levels = species_data$species[order(species_data$length_m)]
+    )
+  )
+
+# Plot sensitivity coefficients and confidence intervals for all species
+param_lbls <- parse(text = levels(sensitivity_coef$param))
+ggplot(sensitivity_coef, aes(species, esonar_coef, color = param)) +
+  geom_pointrange(aes(ymin = ci_min, ymax = ci_max), 
+                  position = position_dodge(1),
+                  size = 0.25) +
+  scale_color_viridis_d(labels = param_lbls) +
+  coord_flip() +
+  facet_wrap(~ scenario) +
+  labs(y = "Sensitivity") +
+  theme_classic(base_size = 12) +
+  theme(axis.text.y = element_text(face = "italic"),
+        axis.title.x = element_text(size = 8),
+        axis.title.y = element_blank(),
+        legend.position = "bottom",
+        legend.text = element_text(hjust = 0),
+        legend.title = element_blank(),
+        strip.background = element_blank(),
+        strip.text = element_blank()) 
+
+# Sensitivity coefficients and CIs by guid
+sensitivity_guilds <- sensitivity_tbl %>% 
+  left_join(select(species_data, species, group), by = "species") %>% 
+  mutate(group = factor(group, 
+                        levels = c("Balaenopteridae",
+                                   "Physeteridae and Ziphiidae",
+                                   "Delphinidae and Phocoenidae"))) %>% 
+  group_by(group, scenario) %>% 
+  mutate_at(vars(esonar_kJ, rf_h, Ep_kJ, delta_ff, CL), zscore) %>% 
+  group_modify(function(data, keys) {
+    # Fit linear model
+    esonar_lm <- lm(esonar_kJ ~ rf_h + Ep_kJ + delta_ff + CL, data = data) 
+    # Extract coefficients and confidence intervals
+    esonar_coef <- coef(esonar_lm)
+    esonar_ci <- as_tibble(confint(esonar_lm, level = 0.95),
+                           rownames = "param")
+    colnames(esonar_ci)[2:3] <- c("ci_min", "ci_max")
+    
+    cbind(esonar_coef, esonar_ci) %>% 
+      select(param, esonar_coef, ci_min, ci_max) %>% 
+      # drop intercept
+      slice(-1)
+  }) %>% 
+  ungroup() %>% 
+  mutate(
+    param = factor(
+      param, 
+      levels = c("rf_h", "Ep_kJ", "delta_ff", "CL"),
+      labels = sprintf("italic(%s)", 
+                       c("r[f]", "E[p]", "Delta*f", "C[L]"))
+    )
+  )
+fig3 <- sensitivity_guilds %>% 
+  group_by(scenario) %>% 
+  group_map(
+    function(data, ...) {
+      ggplot(data,
+             aes(x = param, y = esonar_coef, 
+                 ymin = ci_min, ymax = ci_max, 
+                 color = group)) +
+        geom_pointrange(position = position_dodge(0.6), 
+                        size = 1, 
+                        fatten = 0.75) +
+        coord_flip() +
+        scale_x_discrete(
+          labels = parse(text = levels(sensitivity_guilds$param))
+        ) +
+        scale_y_continuous(
+          "Sensitivity",
+          breaks = seq(0, 1, by = 0.2),
+          labels = seq(0, 1, by = 0.2)
+        ) +
+        scale_color_manual(values = cbf_palette) +
+        expand_limits(y = c(0, 1)) +
+        theme_classic(base_size = 18) +
+        theme(axis.title.y = element_blank(),
+              legend.position = "none",
+              strip.background = element_blank())
+    }
+  ) %>% 
+  plot_grid(plotlist = ., labels = "AUTO")
+
+# Table of sensitivity coefficients and CIs
+abbr_binom <- function(binom) {
+  paste(str_sub(binom, 1, 1), 
+        str_extract(binom, " .*"), 
+        sep = ".")
+}
+coef_tbl <- sensitivity_coef %>% 
+  mutate(abbr = abbr_binom(species),
+         esonar_fmt = sprintf("%0.2f (%0.2f - %0.2f)", 
+                              esonar_coef, ci_min, ci_max),
+         species = as.character(species)) %>% 
+  left_join(select(species_data, species, length_m), by = "species") %>% 
+  arrange(length_m) %>% 
+  select(scenario, abbr, param, esonar_fmt) %>% 
+  pivot_wider(names_from = param, values_from = esonar_fmt) %>% 
+  arrange(scenario) %>% 
+  select(-scenario)
+colnames(coef_tbl) <- c("", "$r_f$", "$E_p$", "$\\Delta f$", "$C_L$")
+
+coef_tbl %>%
+  kable("latex", booktabs = TRUE, escape = FALSE) %>% 
+  kable_styling(latex_options = c("scale_down")) %>% 
+  row_spec(0, align = "c") %>% 
+  pack_rows("Lost consumption scenario", 1, 11) %>%
+  pack_rows("Increased expenditure scenario", 12, 22)
+```
+
+## Critical cessation threshold
+
+Cross-species comparisons of energetic costs are complicated by the range of body sizes 
+across cetaceans. In absolute terms, a loss of 10,000 kJ would be extreme for a harbor porpoise but likely insubstantial to a blue whale. To account for these differences, we used metabolic scaling to approximately estimate the daily energy budget for each species and modeled the duration of a feeding cessation that would exceed the daily energy budget ($t_{crit}$). The results presented in the main text (Fig. 4) are for metabolic scaling according to Kleiber (1975) and Maresh (2014) and an FMR:BMR ratio ($\beta$) of 3. For comparison, the following calculations include $\beta$ of 2.5 and 5.
+
+```{r tcrit}
+# Estimate FMR from mass and beta (Kleiber and Maresh curves)
+fmr_fun <- function(mass, beta, bmr) {
+  daily_bmr <- if (bmr == "Kleiber") {
+    293.1 * mass ^ 0.75
+  } else if (bmr == "Maresh") {
+    581 * mass ^ 0.68
+  } else {
+    stop("Unspecified BMR calculation")
+  } 
+  beta * daily_bmr
+}
+
+# Estimate tcrit once
+tcrit_fun <- function(Uf_ms, tf_hr, beta, bmr, mass_kg, length_m,
+                      rf_h, meanlnEp_lnkJ, sdlnEp_lnkJ, ...) {
+  # Mean delta_ff and CL
+  delta_ff <- ff_fun(Uf_ms, length_m) - ff_fun(1.5, length_m)
+  CL <- CL_fun(mass_kg)
+  
+  # Simulate 14 days of feeding cessation and find the fmr crossing-point
+  fmr <- fmr_fun(mass_kg, beta, bmr)
+  cumulative_Esonar <- tibble(hour = seq(1, 14 * 24)) %>% 
+    mutate(
+      rf = sample(rf_h, nrow(.), replace = TRUE),
+      Ep = rlnorm(nrow(.), meanlog = meanlnEp_lnkJ, sdlog = sdlnEp_lnkJ),
+      delta_ff = rgamma(nrow(.), shape = 4, scale = delta_ff / 4),
+      CL = rgamma(nrow(.), shape = 4, scale = CL / 4),
+      Esonar = Esonar_fun(td_hr = 1, tf_hr, rf, Ep, delta_ff, CL, mass_kg),
+      cum_Esonar = cumsum(Esonar)
+    )
+  
+  approx(x = c(0, cumulative_Esonar$cum_Esonar),
+         y = c(0, cumulative_Esonar$hour),
+         xout = fmr,
+         ties = mean)$y
+}
+
+# Flight scenarios for tcrit calculations
+tcrit_tbl <- tribble(
+  ~scenario,        ~tf_hr,  ~Uf_ms,
+  "no_flight",      0,       1.5,
+  "mild_flight",    5 / 60,  2.5,
+  "strong_flight",  15 / 60, 3.5,
+  "extreme_flight", 30 / 60, 5
+  ) %>% 
+  mutate(scenario = factor(scenario,
+                           levels = c("no_flight", 
+                                      "mild_flight",
+                                      "strong_flight",
+                                      "extreme_flight"),
+                           labels = c("No flight",
+                                      "Mild flight",
+                                      "Strong flight",
+                                      "Extreme flight"))) %>% 
+  # Estimate tcrit for all scenarios 1000 times
+  crossing(species_data,
+           beta = c(2.5, 3, 5),
+           bmr = factor(c("Kleiber", "Maresh")),
+           i = 1:1000) %>% 
+  mutate(tcrit = pmap_dbl(., tcrit_fun))
+
+# Summarize tcrit results
+tcrit_summ <- tcrit_tbl %>% 
+  group_by(abbr, scenario, bmr, beta) %>% 
+  summarize(tcrit_mean = mean(tcrit),
+            tcrit_1q = quantile(tcrit, 0.25),
+            tcrit_3q = quantile(tcrit, 0.75)) %>% 
+  ungroup() %>% 
+  mutate(abbr = factor(abbr, levels = species_data$abbr))
+```
+
+```{r tcrit_results}
+# Figure 4 from main text
+filter(tcrit_summ, beta == 3) %>%
+  ggplot(aes(abbr,
+             tcrit_mean,
+             color = scenario,
+             shape = bmr)) +
+  geom_pointrange(aes(ymin = tcrit_1q,
+                      ymax = tcrit_3q),
+                  fatten = 2,
+                  position = position_dodge(width = 0.6)) +
+  # scale_x_discrete(labels = morphologies$abbr) +
+  scale_y_continuous(
+    expression(italic(t[crit])),
+    breaks = c(0.5, 1, 4, 12, 24, 48, 72),
+    minor_breaks = NULL,
+    labels = c("30 min", "1 hour", "4 hours", "12 hours",
+               "1 day", "2 days", "3 days"),
+    trans = "log2"
+  ) +
+  scale_color_brewer(palette = "RdYlBu", direction = -1) +
+  labs(y = "Feeding cessation") +
+  theme_classic(base_size = 12) +
+  theme(axis.title.x = element_blank(),
+        legend.box.margin = margin(),
+        legend.justification = c(0, 0),
+        legend.position = c(0.11, 0.08),
+        legend.title = element_blank()) +
+  guides(color = guide_legend(ncol = 2), shape = guide_legend(ncol = 2))
+
+# Table of tcrit results
+tcrit_table <- tcrit_summ %>%
+  mutate(tcrit_fmt = sprintf("%.3g (%.3g - %.3g)",
+                             tcrit_mean, tcrit_1q, tcrit_3q)) %>%
+  select(-(tcrit_mean:tcrit_3q)) %>%
+  pivot_wider(names_from = c("bmr", "beta"), values_from = tcrit_fmt)
+colnames(tcrit_table) <- c(
+  "", "",
+  "$t_{crit} (hr), \\beta = 2.5$", 
+  "$t_{crit} (hr), \\beta = 3$", 
+  "$t_{crit} (hr), \\beta = 5$",
+  "$t_{crit} (hr), \\beta = 2.5$", 
+  "$t_{crit} (hr), \\beta = 3$", 
+  "$t_{crit} (hr), \\beta = 5$"
+)
+kable(tcrit_table, "latex", booktabs = TRUE, escape = FALSE) %>%
+  kable_styling(latex_options = c("scale_down")) %>% 
+  add_header_above(c(" " = 2, "Kleiber" = 3, "Maresh" = 3)) %>% 
+  collapse_rows(columns = 1, latex_hline = "major", valign = "top") 
+```
